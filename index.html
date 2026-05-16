@@ -18,21 +18,31 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=57">
+  <link rel="stylesheet" href="assets/styles.css?v=58">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
     // in the same launch. Sets the flag before the splash element is even
     // parsed, so the CSS rule html.splash-skip #splash { display: none }
     // hides it from the very first paint - no flash, no JS race.
+    //
+    // When the splash IS showing, we also set html.splash-showing so the
+    // body background can shift to the splash-gradient edge color. That
+    // covers the iOS Safari quirk where position:fixed inset:0 doesn't
+    // always cover the full visible viewport, leaving a dark strip at
+    // the bottom that reads as a "black bar."
     (function () {
       try {
         if (sessionStorage.getItem('tp_splash_shown') === '1') {
           document.documentElement.classList.add('splash-skip');
         } else {
           sessionStorage.setItem('tp_splash_shown', '1');
+          document.documentElement.classList.add('splash-showing');
         }
-      } catch (e) { /* sessionStorage disabled - show splash, harmless */ }
+      } catch (e) {
+        // sessionStorage disabled - default to showing the splash.
+        document.documentElement.classList.add('splash-showing');
+      }
     })();
   </script>
 </head>
@@ -579,7 +589,7 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=50"></script>
+<script src="assets/app.js?v=51"></script>
 
 </body>
 </html>
