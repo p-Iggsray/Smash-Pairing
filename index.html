@@ -18,7 +18,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=53">
+  <link rel="stylesheet" href="assets/styles.css?v=54">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -276,12 +276,16 @@
           </div>
         </div>
 
-        <label class="form-field">
+        <div class="form-field">
           <span class="form-label">Main character</span>
-          <input id="profile-main" type="text" maxlength="32" autocomplete="off"
-                 placeholder="(optional)"
-                 onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
-        </label>
+          <input id="profile-main" type="hidden">
+          <button type="button" class="profile-main-trigger" onclick="openMainPicker()">
+            <span id="profile-main-display" class="is-placeholder">No main</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="9 6 15 12 9 18"/>
+            </svg>
+          </button>
+        </div>
 
         <label class="form-field">
           <span class="form-label">Notes</span>
@@ -293,6 +297,14 @@
           <button type="button" class="btn-profile-delete" id="profile-delete-btn" hidden onclick="deleteCurrentProfile()">Delete</button>
         </div>
       </form>
+    </section>
+
+    <section class="profiles-view profiles-view-main-picker">
+      <div class="main-picker-search-row">
+        <input type="search" id="main-picker-search" placeholder="Search fighters..." autocomplete="off" autocorrect="off" spellcheck="false" oninput="filterMainPicker()">
+      </div>
+      <div class="main-picker-grid" id="main-picker-grid" role="listbox" aria-label="Smash fighter roster"></div>
+      <div class="main-picker-empty" id="main-picker-empty" hidden>No fighters match.</div>
     </section>
   </div>
 </div>
@@ -552,7 +564,7 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=47"></script>
+<script src="assets/app.js?v=48"></script>
 
 </body>
 </html>

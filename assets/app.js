@@ -60,6 +60,70 @@ const STORAGE_KEY = 'tp_v2';
 const PRESETS_KEY = 'tp_presets';
 const PROFILES_KEY = 'tp_profiles';
 
+// Super Smash Bros. Ultimate fighter roster (87 slots) in canonical
+// character-select-screen order. Roster has been frozen since Sora
+// (Oct 2021), so we hardcode rather than fetch. id is the storage key
+// for profile.main; name is the display label.
+const SSBU_FIGHTERS = [
+  ['mario', 'Mario'], ['donkey-kong', 'Donkey Kong'], ['link', 'Link'],
+  ['samus', 'Samus'], ['dark-samus', 'Dark Samus'], ['yoshi', 'Yoshi'],
+  ['kirby', 'Kirby'], ['fox', 'Fox'], ['pikachu', 'Pikachu'],
+  ['luigi', 'Luigi'], ['ness', 'Ness'], ['captain-falcon', 'Captain Falcon'],
+  ['jigglypuff', 'Jigglypuff'], ['peach', 'Peach'], ['daisy', 'Daisy'],
+  ['bowser', 'Bowser'], ['ice-climbers', 'Ice Climbers'], ['sheik', 'Sheik'],
+  ['zelda', 'Zelda'], ['dr-mario', 'Dr. Mario'], ['pichu', 'Pichu'],
+  ['falco', 'Falco'], ['marth', 'Marth'], ['lucina', 'Lucina'],
+  ['young-link', 'Young Link'], ['ganondorf', 'Ganondorf'], ['mewtwo', 'Mewtwo'],
+  ['roy', 'Roy'], ['chrom', 'Chrom'], ['mr-game-and-watch', 'Mr. Game & Watch'],
+  ['meta-knight', 'Meta Knight'], ['pit', 'Pit'], ['dark-pit', 'Dark Pit'],
+  ['zero-suit-samus', 'Zero Suit Samus'], ['wario', 'Wario'], ['snake', 'Snake'],
+  ['ike', 'Ike'], ['pokemon-trainer', 'Pokémon Trainer'], ['diddy-kong', 'Diddy Kong'],
+  ['lucas', 'Lucas'], ['sonic', 'Sonic'], ['king-dedede', 'King Dedede'],
+  ['olimar', 'Olimar'], ['lucario', 'Lucario'], ['rob', 'R.O.B.'],
+  ['toon-link', 'Toon Link'], ['wolf', 'Wolf'], ['villager', 'Villager'],
+  ['mega-man', 'Mega Man'], ['wii-fit-trainer', 'Wii Fit Trainer'],
+  ['rosalina-and-luma', 'Rosalina & Luma'], ['little-mac', 'Little Mac'],
+  ['greninja', 'Greninja'], ['mii-brawler', 'Mii Brawler'],
+  ['mii-swordfighter', 'Mii Swordfighter'], ['mii-gunner', 'Mii Gunner'],
+  ['palutena', 'Palutena'], ['pac-man', 'Pac-Man'], ['robin', 'Robin'],
+  ['shulk', 'Shulk'], ['bowser-jr', 'Bowser Jr.'], ['duck-hunt', 'Duck Hunt'],
+  ['ryu', 'Ryu'], ['ken', 'Ken'], ['cloud', 'Cloud'], ['corrin', 'Corrin'],
+  ['bayonetta', 'Bayonetta'], ['inkling', 'Inkling'], ['ridley', 'Ridley'],
+  ['simon', 'Simon'], ['richter', 'Richter'], ['king-k-rool', 'King K. Rool'],
+  ['isabelle', 'Isabelle'], ['incineroar', 'Incineroar'],
+  ['piranha-plant', 'Piranha Plant'], ['joker', 'Joker'], ['hero', 'Hero'],
+  ['banjo-and-kazooie', 'Banjo & Kazooie'], ['terry', 'Terry'], ['byleth', 'Byleth'],
+  ['min-min', 'Min Min'], ['steve', 'Steve'], ['sephiroth', 'Sephiroth'],
+  ['pyra', 'Pyra'], ['mythra', 'Mythra'], ['kazuya', 'Kazuya'], ['sora', 'Sora'],
+].map(([id, name]) => ({ id, name }));
+
+const SSBU_FIGHTERS_BY_ID = Object.fromEntries(SSBU_FIGHTERS.map(f => [f.id, f]));
+
+// Display helper: returns the canonical fighter name for a stored id,
+// or falls back to the raw string for legacy free-text mains. Empty
+// input returns empty.
+function getFighterName(mainValue) {
+  if (!mainValue) return '';
+  const f = SSBU_FIGHTERS_BY_ID[mainValue];
+  return f ? f.name : mainValue;
+}
+
+// Used when loading an existing profile into the picker: try to match
+// a legacy free-text main (e.g. "mario", "Mario", "DONKEY KONG") to a
+// canonical fighter id so the picker shows the right tile as selected.
+// Returns '' if no match - the picker shows nothing selected and the
+// stored string remains as-is until the user makes a pick.
+function findFighterIdByText(text) {
+  if (!text) return '';
+  if (SSBU_FIGHTERS_BY_ID[text]) return text;
+  const norm = text.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!norm) return '';
+  for (const f of SSBU_FIGHTERS) {
+    if (f.name.toLowerCase().replace(/[^a-z0-9]/g, '') === norm) return f.id;
+  }
+  return '';
+}
+
 let presets = [];
 let profiles = [];
 
@@ -648,6 +712,11 @@ function closeProfilesScreen() {
 }
 
 function goBackInProfiles() {
+  if (profilesSubview === 'main-picker') {
+    // Picker only mutates main via pickMain(); plain back = no change.
+    setProfilesSubview('form');
+    return;
+  }
   if (profilesSubview === 'form') {
     if (isProfileFormDirty()) {
       showConfirm({
@@ -675,6 +744,7 @@ function openAddProfileForm() {
   editingProfile = null;
   document.getElementById('profile-name').value = '';
   document.getElementById('profile-main').value = '';
+  updateMainTriggerLabel();
   document.getElementById('profile-notes').value = '';
   setProfileFormSkill('exp');
   document.getElementById('profile-delete-btn').hidden = true;
@@ -688,6 +758,7 @@ function openEditProfileForm(id) {
   editingProfile = { ...p };
   document.getElementById('profile-name').value = p.name;
   document.getElementById('profile-main').value = p.main || '';
+  updateMainTriggerLabel();
   document.getElementById('profile-notes').value = p.notes || '';
   setProfileFormSkill(p.skill);
   document.getElementById('profile-delete-btn').hidden = false;
@@ -773,10 +844,72 @@ function renderProfilesList() {
       <span class="profile-info">
         <span class="profile-name">${esc(p.name)}</span>
         <span class="profile-skill-chip ${p.skill}">${p.skill === 'exp' ? 'Experienced' : 'Inexperienced'}</span>
-        ${p.main ? `<span class="profile-main">Main: ${esc(p.main)}</span>` : ''}
+        ${p.main ? `<span class="profile-main">Main: ${esc(getFighterName(p.main))}</span>` : ''}
       </span>
     </button>
   `).join('');
+}
+
+// ---- Main-character picker (Profiles form sub-view) ----
+
+function openMainPicker() {
+  setProfilesSubview('main-picker');
+  renderMainPicker();
+  // Clear any leftover search query but don't auto-focus - on iOS that
+  // would pop the keyboard before the user can see the roster grid.
+  const search = document.getElementById('main-picker-search');
+  if (search) search.value = '';
+  const empty = document.getElementById('main-picker-empty');
+  if (empty) empty.hidden = true;
+}
+
+function renderMainPicker() {
+  const grid = document.getElementById('main-picker-grid');
+  if (!grid) return;
+  const current = document.getElementById('profile-main').value;
+  const currentId = findFighterIdByText(current);
+  const noMainSelected = !current;
+  const tiles = [
+    `<button type="button" class="main-tile main-tile-clear${noMainSelected ? ' is-selected' : ''}" onclick="pickMain('')">No main</button>`,
+    ...SSBU_FIGHTERS.map(f => `
+      <button type="button" class="main-tile${currentId === f.id ? ' is-selected' : ''}" data-fighter-name="${esc(f.name.toLowerCase())}" onclick="pickMain('${f.id}')">${esc(f.name)}</button>
+    `).join(''),
+  ];
+  grid.innerHTML = tiles.join('');
+}
+
+function filterMainPicker() {
+  const q = document.getElementById('main-picker-search').value.trim().toLowerCase();
+  const tiles = document.querySelectorAll('#main-picker-grid .main-tile');
+  let visible = 0;
+  tiles.forEach(t => {
+    if (t.classList.contains('main-tile-clear')) {
+      // Hide "No main" while searching - search is for finding a fighter.
+      t.hidden = q.length > 0;
+      if (!t.hidden) visible++;
+      return;
+    }
+    const name = t.dataset.fighterName || '';
+    t.hidden = q ? !name.includes(q) : false;
+    if (!t.hidden) visible++;
+  });
+  const empty = document.getElementById('main-picker-empty');
+  if (empty) empty.hidden = visible > 0;
+}
+
+function pickMain(id) {
+  document.getElementById('profile-main').value = id;
+  updateMainTriggerLabel();
+  setProfilesSubview('form');
+}
+
+function updateMainTriggerLabel() {
+  const display = document.getElementById('profile-main-display');
+  if (!display) return;
+  const value = document.getElementById('profile-main').value;
+  const label = value ? getFighterName(value) : '';
+  display.textContent = label || 'No main';
+  display.classList.toggle('is-placeholder', !label);
 }
 
 // Wrapper used by the menu option buttons so picking a mode auto-closes
