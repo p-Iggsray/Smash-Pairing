@@ -59,16 +59,9 @@ const state = {
 const STORAGE_KEY = 'tp_v2';
 const PRESETS_KEY = 'tp_presets';
 const PROFILES_KEY = 'tp_profiles';
-const PROFILES_SCHEMA_VERSION = 1;
 
 let presets = [];
 let profiles = [];
-
-// Backup-dirty tracking: lastChangedAt advances on any profile mutation,
-// lastExportedAt advances on a successful Export. profilesDirty() = the
-// "show the nudge banner" decision.
-let lastChangedAt = null;
-let lastExportedAt = null;
 
 // Id of the preset row currently in inline-rename edit mode (null when none).
 let editingPresetId = null;
@@ -126,17 +119,9 @@ function loadPresetsFromStorage() {
   } catch(e) {}
 }
 
-// Profiles persist as a versioned wrapper so we can migrate the shape in
-// future without losing data. lastChangedAt / lastExportedAt drive the
-// backup nudge.
 function saveProfilesToStorage() {
   try {
-    localStorage.setItem(PROFILES_KEY, JSON.stringify({
-      version: PROFILES_SCHEMA_VERSION,
-      profiles,
-      lastChangedAt,
-      lastExportedAt,
-    }));
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
   } catch(e) {
     showToast('Save failed', { variant: 'error' });
   }
@@ -147,36 +132,8 @@ function loadProfilesFromStorage() {
     const raw = localStorage.getItem(PROFILES_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      // Legacy: bare array. Migrate to wrapped shape and mark as dirty
-      // so the maintainer is nudged to back up the migrated state.
-      profiles = parsed;
-      lastChangedAt = Date.now();
-      lastExportedAt = null;
-      saveProfilesToStorage();
-    } else if (parsed && parsed.version === PROFILES_SCHEMA_VERSION) {
-      profiles       = Array.isArray(parsed.profiles) ? parsed.profiles : [];
-      lastChangedAt  = parsed.lastChangedAt  || null;
-      lastExportedAt = parsed.lastExportedAt || null;
-    } else {
-      // Unknown future version - refuse to load to avoid clobbering a
-      // schema this build doesn't understand.
-      console.warn('Unknown profiles schema version', parsed && parsed.version);
-      profiles = [];
-    }
+    if (Array.isArray(parsed)) profiles = parsed;
   } catch(e) { profiles = []; }
-}
-
-function profilesDirty() {
-  if (!profiles.length) return false;
-  if (!lastExportedAt) return true;
-  return (lastChangedAt || 0) > lastExportedAt;
-}
-
-function markProfilesChanged() {
-  lastChangedAt = Date.now();
-  saveProfilesToStorage();
-  renderBackupNudge();
 }
 
 function getProfileById(id) { return profiles.find(p => p.id === id); }
@@ -682,7 +639,6 @@ function openProfilesScreen() {
   editingProfile = null;
   setProfilesSubview('list');
   renderProfilesList();
-  renderBackupNudge();
   render();
 }
 
@@ -766,7 +722,7 @@ function saveProfileForm() {
   } else {
     profiles.push({ id: Date.now(), name, skill, main, notes, createdAt: Date.now() });
   }
-  markProfilesChanged();
+  saveProfilesToStorage();
   renderProfilesList();
   setProfilesSubview('list');
   editingProfile = null;
@@ -783,7 +739,7 @@ async function deleteCurrentProfile() {
   });
   if (!ok) return;
   profiles = profiles.filter(p => p.id !== editingProfile.id);
-  markProfilesChanged();
+  saveProfilesToStorage();
   renderProfilesList();
   setProfilesSubview('list');
   editingProfile = null;
@@ -821,165 +777,6 @@ function renderProfilesList() {
       </span>
     </button>
   `).join('');
-}
-
-// ---- Profiles backup (export / import / nudge) ----
-
-function exportProfiles() {
-  try {
-    const payload = {
-      version: PROFILES_SCHEMA_VERSION,
-      exportedAt: Date.now(),
-      profiles,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `smash-pairing-profiles-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    lastExportedAt = Date.now();
-    saveProfilesToStorage();
-    renderBackupNudge();
-    showToast(`Exported ${profiles.length} profile${profiles.length === 1 ? '' : 's'}`);
-  } catch(e) {
-    showToast('Export failed', { variant: 'error' });
-  }
-}
-
-function triggerImportProfiles() {
-  document.getElementById('profiles-import-file').click();
-}
-
-function handleImportFile(event) {
-  const file = event.target.files && event.target.files[0];
-  event.target.value = ''; // reset so re-importing the same file works
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    let parsed;
-    try { parsed = JSON.parse(e.target.result); }
-    catch { showToast('Could not read file', { variant: 'error' }); return; }
-    if (!parsed || !Array.isArray(parsed.profiles)) {
-      showToast('Invalid backup file', { variant: 'error' });
-      return;
-    }
-    const incoming = parsed.profiles.filter(p =>
-      p && typeof p.name === 'string' && (p.skill === 'exp' || p.skill === 'inexp'));
-    if (!incoming.length) {
-      showToast('No valid profiles in file', { variant: 'error' });
-      return;
-    }
-    applyImport(incoming);
-  };
-  reader.onerror = () => showToast('Could not read file', { variant: 'error' });
-  reader.readAsText(file);
-}
-
-async function applyImport(incoming) {
-  let strategy;
-  if (!profiles.length) {
-    // Empty app: Replace and Merge are equivalent, ask one binary question.
-    const ok = await showConfirm({
-      title: 'Import profiles?',
-      body: `Add ${incoming.length} profile${incoming.length === 1 ? '' : 's'} from this file.`,
-      confirmLabel: 'Import',
-    });
-    if (!ok) return;
-    strategy = 'replace';
-  } else {
-    strategy = await showImportChoice({
-      existing: profiles.length,
-      incoming: incoming.length,
-    });
-    if (strategy === 'cancel') return;
-  }
-  const renumbered = renumberProfiles(incoming);
-  if (strategy === 'replace') {
-    profiles = renumbered;
-  } else {
-    profiles = [...profiles, ...renumbered];
-  }
-  markProfilesChanged();
-  renderProfilesList();
-  showToast(`${strategy === 'replace' ? 'Replaced' : 'Merged'}: ${incoming.length} profile${incoming.length === 1 ? '' : 's'}`);
-}
-
-// Strip imported IDs and reassign fresh ones so they can't collide with
-// existing local IDs (which are also Date.now()-based).
-function renumberProfiles(list) {
-  let counter = Date.now();
-  return list.map(p => ({
-    id: counter++,
-    name: String(p.name).slice(0, 40),
-    skill: p.skill,
-    main: typeof p.main === 'string' ? p.main.slice(0, 32) : '',
-    notes: typeof p.notes === 'string' ? p.notes.slice(0, 200) : '',
-    createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
-  }));
-}
-
-// Promise-based 3-way modal mirroring showConfirm's pattern.
-let _importChoiceResolver = null;
-
-function showImportChoice({ existing, incoming }) {
-  return new Promise(resolve => {
-    if (_importChoiceResolver) _importChoiceResolver('cancel');
-    _importChoiceResolver = resolve;
-    document.getElementById('import-choice-body').textContent =
-      `You have ${existing} profile${existing === 1 ? '' : 's'}. The file contains ${incoming}. ` +
-      `Replace your current profiles or merge them in?`;
-    document.getElementById('import-choice-modal').classList.add('open');
-  });
-}
-
-function resolveImportChoice(choice) {
-  document.getElementById('import-choice-modal').classList.remove('open');
-  if (_importChoiceResolver) {
-    _importChoiceResolver(choice);
-    _importChoiceResolver = null;
-  }
-}
-
-function handleImportChoiceBackdropClick(e) {
-  if (e.target === document.getElementById('import-choice-modal')) resolveImportChoice('cancel');
-}
-
-function renderBackupNudge() {
-  const banner = document.getElementById('profiles-backup-banner');
-  const status = document.getElementById('profiles-backup-status');
-  if (!banner || !status) return;
-  const dirty = profilesDirty();
-  banner.hidden = !dirty;
-  if (dirty) {
-    const sub = document.getElementById('profiles-backup-banner-sub');
-    if (sub) {
-      if (lastExportedAt) {
-        const d = daysAgo(lastExportedAt);
-        sub.textContent = `${d} day${d === 1 ? '' : 's'} since last backup`;
-      } else {
-        sub.textContent = 'Not backed up yet';
-      }
-    }
-  }
-  if (lastExportedAt) {
-    const d = daysAgo(lastExportedAt);
-    status.textContent = `Last exported ${d} day${d === 1 ? '' : 's'} ago`;
-  } else {
-    status.textContent = 'No exports yet';
-  }
-}
-
-function daysAgo(ts) {
-  return Math.max(0, Math.floor((Date.now() - ts) / (24 * 60 * 60 * 1000)));
-}
-
-function scrollToBackupSection() {
-  const section = document.getElementById('profiles-backup-section');
-  if (section) section.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 // Wrapper used by the menu option buttons so picking a mode auto-closes
@@ -1621,17 +1418,13 @@ document.getElementById('inexp-input-r').addEventListener('keydown', e => {
   if (e.key === 'Enter') addPlayer('inexp', 'inexp-input-r');
 });
 
-// Escape cancels the topmost interactive layer: confirm sheet -> import-
-// choice modal -> Profiles screen nav. Order matters so Esc during the
+// Escape cancels an open confirm sheet first, otherwise navigates back from
+// the Profiles screen if it's open. Confirm has priority so Esc during the
 // discard-changes confirm doesn't accidentally double-pop the navigation.
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (document.getElementById('confirm-modal').classList.contains('open')) {
     resolveConfirm(false);
-    return;
-  }
-  if (document.getElementById('import-choice-modal').classList.contains('open')) {
-    resolveImportChoice('cancel');
     return;
   }
   if (currentScreen === 'profiles') {
