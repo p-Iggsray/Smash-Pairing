@@ -1199,6 +1199,57 @@ body[data-screen="profiles"] #menu-btn { display: none; }
 body[data-profiles-subview="form"] .profiles-add-btn,
 body[data-profiles-subview="main-picker"] .profiles-add-btn { display: none; }
 
+/* Stats strip below the header - hidden when not on the list subview
+   so the form/picker get the full viewport height. */
+.profiles-stats {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+body[data-profiles-subview="form"] .profiles-stats,
+body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
+
+.profile-stat-chip {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.profile-stat-num {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.profile-stat-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.profile-stat-chip.exp {
+  color: var(--exp);
+  background: rgba(77, 159, 255, 0.10);
+  border-color: rgba(77, 159, 255, 0.28);
+}
+.profile-stat-chip.inexp {
+  color: var(--inexp);
+  background: rgba(46, 232, 160, 0.10);
+  border-color: rgba(46, 232, 160, 0.28);
+}
+.profile-stat-chip.total {
+  color: var(--dim);
+}
+
 /* Dedicated Profiles header bar - not .modal-header to avoid baseline-rule leak. */
 .profiles-header {
   display: flex;
@@ -1244,11 +1295,17 @@ body[data-profiles-subview="main-picker"] .profiles-add-btn { display: none; }
   flex: 1;
   position: relative;
   overflow: hidden;
+  /* min-height: 0 is needed so this flex item can shrink below its
+     intrinsic content size on iOS Safari - otherwise the viewport
+     can grow past the screen and the absolute child has no clipped
+     box to scroll inside of. */
+  min-height: 0;
 }
 .profiles-view {
   position: absolute;
   inset: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 16px;
   padding-bottom: calc(env(safe-area-inset-bottom) + 16px);
   transform: translateX(100%);
@@ -1400,6 +1457,11 @@ body[data-profiles-subview="main-picker"] .profiles-add-btn { display: none; }
   text-align: left;
   cursor: pointer;
   font-family: inherit;
+  flex-shrink: 0;
+  /* Override the global `button { touch-action: manipulation }` -
+     manipulation can swallow vertical pan on iOS when the touch
+     starts on a button, blocking scroll of the parent list. */
+  touch-action: pan-y;
 }
 .profile-card:active { background: var(--surface); }
 .profile-avatar {

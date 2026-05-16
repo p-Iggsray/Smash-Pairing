@@ -830,7 +830,23 @@ function isProfileFormDirty() {
   return Boolean(name || main || notes) || skill !== 'exp';
 }
 
+function renderProfileStats() {
+  let exp = 0, inexp = 0;
+  for (const p of profiles) {
+    if (p.skill === 'exp') exp++;
+    else if (p.skill === 'inexp') inexp++;
+  }
+  const set = (id, v) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = v;
+  };
+  set('profile-stat-exp', exp);
+  set('profile-stat-inexp', inexp);
+  set('profile-stat-total', profiles.length);
+}
+
 function renderProfilesList() {
+  renderProfileStats();
   const container = document.getElementById('profiles-list');
   if (!container) return;
   const sorted = getProfilesSorted();
