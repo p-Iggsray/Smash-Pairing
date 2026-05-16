@@ -1362,6 +1362,7 @@ body[data-profiles-subview="main-picker"] .profiles-add-btn { display: none; }
   hyphens: auto;
 }
 .main-tile:active { background: rgba(77, 159, 255, 0.14); }
+.main-tile[hidden] { display: none; }
 .main-tile.is-selected {
   background: rgba(255, 201, 77, 0.18);
   border-color: rgba(255, 201, 77, 0.6);
