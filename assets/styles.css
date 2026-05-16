@@ -1061,9 +1061,6 @@ body:has(#menu-modal.open) #menu-btn line:nth-child(3) {
 .drawer-view.is-entering .menu-divider {
   animation: drawer-divider-in 150ms ease-out 200ms backwards;
 }
-.modal-backdrop.open:has(> .modal-sheet.is-drawer) .modal-actions .btn-close-modal {
-  animation: drawer-stagger-in 250ms cubic-bezier(0.2, 0, 0, 1) 400ms backwards;
-}
 
 /* Drawer viewport clips off-screen views during sub-view navigation. */
 .drawer-viewport {
@@ -1730,8 +1727,7 @@ body:has(#menu-modal.open) #menu-btn line:nth-child(3) {
   }
   .drawer-view { transition: none; }
   .drawer-view.is-entering .menu-option,
-  .drawer-view.is-entering .menu-divider,
-  .modal-backdrop.open:has(> .modal-sheet.is-drawer) .modal-actions .btn-close-modal {
+  .drawer-view.is-entering .menu-divider {
     animation: none;
   }
 }
