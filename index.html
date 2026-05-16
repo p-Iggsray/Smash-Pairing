@@ -18,7 +18,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=49">
+  <link rel="stylesheet" href="assets/styles.css?v=50">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -263,6 +263,18 @@
               <span class="menu-option-desc" id="menu-team-creation-desc">Currently: Full 2v2</span>
             </span>
           </button>
+          <button class="menu-option" id="menu-profiles" role="menuitem" onclick="openSubView('profiles')">
+            <span class="menu-option-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="4"/>
+                <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>
+              </svg>
+            </span>
+            <span class="menu-option-text">
+              <span class="menu-option-title">Profiles</span>
+              <span class="menu-option-desc">Per-player stats and settings</span>
+            </span>
+          </button>
           <button class="menu-option" id="menu-scheduling" role="menuitem" onclick="openSubView('scheduling')">
             <span class="menu-option-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -310,6 +322,21 @@
             <span class="menu-option-title">Split 2v2</span>
             <span class="menu-option-desc">Same-skill teams: exp + exp and inexp + inexp</span>
           </button>
+        </div>
+      </section>
+
+      <section class="drawer-view drawer-view-profiles">
+        <div class="modal-header sub-header">
+          <button class="drawer-back-btn" aria-label="Back to main menu" onclick="goBackToMain()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+          <span class="modal-title">Profiles</span>
+        </div>
+        <div class="scheduling-placeholder">
+          <p class="placeholder-title">Coming soon</p>
+          <p class="placeholder-body">Per-player profiles with stats, preferred mains, and team history.</p>
         </div>
       </section>
 

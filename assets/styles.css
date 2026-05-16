@@ -1085,6 +1085,7 @@ body:has(#menu-modal.open) #menu-btn line:nth-child(3) {
 /* Active view: on-screen. */
 .modal-sheet[data-view="main"]            .drawer-view-main,
 .modal-sheet[data-view="team-creation"]   .drawer-view-team-creation,
+.modal-sheet[data-view="profiles"]        .drawer-view-profiles,
 .modal-sheet[data-view="scheduling"]      .drawer-view-scheduling,
 .modal-sheet[data-view="options"]         .drawer-view-options {
   transform: translateX(0);
@@ -1094,6 +1095,7 @@ body:has(#menu-modal.open) #menu-btn line:nth-child(3) {
 
 /* Going forward into a sub-view: main slides off LEFT. */
 .modal-sheet[data-view="team-creation"][data-nav-direction="forward"] .drawer-view-main,
+.modal-sheet[data-view="profiles"][data-nav-direction="forward"]      .drawer-view-main,
 .modal-sheet[data-view="scheduling"][data-nav-direction="forward"]    .drawer-view-main,
 .modal-sheet[data-view="options"][data-nav-direction="forward"]       .drawer-view-main {
   transform: translateX(-100%);
