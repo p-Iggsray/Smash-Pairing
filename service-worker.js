@@ -3,7 +3,7 @@
 // offline fallback. This guarantees the PWA on the home screen always
 // serves the latest deploy when there is connectivity.
 
-const CACHE = 'rpg-runtime-v50';
+const CACHE = 'rpg-runtime-v51';
 const PRECACHE = [
   './',
   './index.html',
