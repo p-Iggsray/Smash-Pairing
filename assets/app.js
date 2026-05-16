@@ -58,11 +58,20 @@ const state = {
 
 const STORAGE_KEY = 'tp_v2';
 const PRESETS_KEY = 'tp_presets';
+const PROFILES_KEY = 'tp_profiles';
 
 let presets = [];
+let profiles = [];
 
 // Id of the preset row currently in inline-rename edit mode (null when none).
 let editingPresetId = null;
+
+// Profile editing state. currentScreen is NOT persisted - reload always lands
+// on Home/Results, never Profiles. editingProfile holds the original snapshot
+// for dirty-check; profilesSubview tracks which of the two sub-views is showing.
+let currentScreen = 'home';
+let editingProfile = null;
+let profilesSubview = 'list';
 
 // In-progress swap selection on the Results screen. Null when no player is selected.
 // Shape: { type: 'exp'|'inexp', pairIdx: number, playerId: number }
@@ -109,6 +118,26 @@ function loadPresetsFromStorage() {
     if (raw) presets = JSON.parse(raw);
   } catch(e) {}
 }
+
+function saveProfilesToStorage() {
+  try {
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+  } catch(e) {
+    showToast('Save failed', { variant: 'error' });
+  }
+}
+
+function loadProfilesFromStorage() {
+  try {
+    const raw = localStorage.getItem(PROFILES_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) profiles = parsed;
+  } catch(e) { profiles = []; }
+}
+
+function getProfileById(id) { return profiles.find(p => p.id === id); }
+function getProfilesSorted() { return [...profiles].reverse(); }
 
 // ---- helpers ----
 
@@ -438,6 +467,9 @@ function resetTeams() {
 function render() {
   document.getElementById('home').style.display     = state.hasPaired ? 'none' : 'block';
   document.getElementById('menu-btn').style.display = state.hasPaired ? 'none' : 'flex';
+  document.body.dataset.screen = currentScreen === 'profiles'
+    ? 'profiles'
+    : (state.hasPaired ? 'results' : 'home');
   renderMenu();
   renderPanel('exp');
   renderPanel('inexp');
@@ -596,6 +628,155 @@ function toggleMenu() {
 
 function handleMenuBackdropClick(e) {
   if (e.target === document.getElementById('menu-modal')) hideMenu();
+}
+
+// ---- Profiles screen ----
+
+function openProfilesScreen() {
+  closeAmbientAnimations();
+  hideMenu();
+  currentScreen = 'profiles';
+  editingProfile = null;
+  setProfilesSubview('list');
+  renderProfilesList();
+  render();
+}
+
+function closeProfilesScreen() {
+  currentScreen = 'home';
+  render();
+}
+
+function goBackInProfiles() {
+  if (profilesSubview === 'form') {
+    if (isProfileFormDirty()) {
+      showConfirm({
+        title: 'Discard changes?',
+        body: 'Your unsaved changes will be lost.',
+        danger: true,
+        confirmLabel: 'Discard'
+      }).then(ok => { if (ok) setProfilesSubview('list'); });
+    } else {
+      setProfilesSubview('list');
+    }
+  } else {
+    closeProfilesScreen();
+  }
+}
+
+function setProfilesSubview(name) {
+  profilesSubview = name;
+  const vp = document.querySelector('.profiles-viewport');
+  if (vp) vp.dataset.subview = name;
+  document.body.dataset.profilesSubview = name;
+}
+
+function openAddProfileForm() {
+  editingProfile = null;
+  document.getElementById('profile-name').value = '';
+  document.getElementById('profile-main').value = '';
+  document.getElementById('profile-notes').value = '';
+  setProfileFormSkill('exp');
+  document.getElementById('profile-delete-btn').hidden = true;
+  setProfilesSubview('form');
+  setTimeout(() => document.getElementById('profile-name').focus(), 280);
+}
+
+function openEditProfileForm(id) {
+  const p = getProfileById(id);
+  if (!p) return;
+  editingProfile = { ...p };
+  document.getElementById('profile-name').value = p.name;
+  document.getElementById('profile-main').value = p.main || '';
+  document.getElementById('profile-notes').value = p.notes || '';
+  setProfileFormSkill(p.skill);
+  document.getElementById('profile-delete-btn').hidden = false;
+  setProfilesSubview('form');
+}
+
+function setProfileFormSkill(skill) {
+  document.querySelectorAll('.skill-seg-btn').forEach(b => {
+    const matches = b.classList.contains(`skill-seg-${skill}`);
+    b.setAttribute('aria-checked', matches ? 'true' : 'false');
+  });
+}
+
+function getProfileFormSkill() {
+  const btn = document.querySelector('.skill-seg-btn[aria-checked="true"]');
+  return btn && btn.classList.contains('skill-seg-inexp') ? 'inexp' : 'exp';
+}
+
+function saveProfileForm() {
+  const name  = document.getElementById('profile-name').value.trim();
+  const main  = document.getElementById('profile-main').value.trim();
+  const notes = document.getElementById('profile-notes').value.trim();
+  const skill = getProfileFormSkill();
+  if (!name) {
+    showToast('Name required');
+    document.getElementById('profile-name').focus();
+    return;
+  }
+  if (editingProfile) {
+    const idx = profiles.findIndex(p => p.id === editingProfile.id);
+    if (idx >= 0) profiles[idx] = { ...profiles[idx], name, skill, main, notes };
+  } else {
+    profiles.push({ id: Date.now(), name, skill, main, notes, createdAt: Date.now() });
+  }
+  saveProfilesToStorage();
+  renderProfilesList();
+  setProfilesSubview('list');
+  editingProfile = null;
+}
+
+async function deleteCurrentProfile() {
+  if (!editingProfile) return;
+  const name = editingProfile.name;
+  const ok = await showConfirm({
+    title: 'Delete profile?',
+    body: `"${name}" will be removed permanently.`,
+    danger: true,
+    confirmLabel: 'Delete'
+  });
+  if (!ok) return;
+  profiles = profiles.filter(p => p.id !== editingProfile.id);
+  saveProfilesToStorage();
+  renderProfilesList();
+  setProfilesSubview('list');
+  editingProfile = null;
+}
+
+function isProfileFormDirty() {
+  const name  = document.getElementById('profile-name').value.trim();
+  const main  = document.getElementById('profile-main').value.trim();
+  const notes = document.getElementById('profile-notes').value.trim();
+  const skill = getProfileFormSkill();
+  if (editingProfile) {
+    return name  !== editingProfile.name ||
+           main  !== (editingProfile.main  || '') ||
+           notes !== (editingProfile.notes || '') ||
+           skill !== editingProfile.skill;
+  }
+  return Boolean(name || main || notes) || skill !== 'exp';
+}
+
+function renderProfilesList() {
+  const container = document.getElementById('profiles-list');
+  if (!container) return;
+  const sorted = getProfilesSorted();
+  if (!sorted.length) {
+    container.innerHTML = '<div class="list-empty">No profiles yet. Tap + to add your first one.</div>';
+    return;
+  }
+  container.innerHTML = sorted.map(p => `
+    <button class="profile-card" onclick="openEditProfileForm(${p.id})">
+      <span class="profile-avatar ${p.skill}">${esc(p.name.charAt(0).toUpperCase())}</span>
+      <span class="profile-info">
+        <span class="profile-name">${esc(p.name)}</span>
+        <span class="profile-skill-chip ${p.skill}">${p.skill === 'exp' ? 'Experienced' : 'Inexperienced'}</span>
+        ${p.main ? `<span class="profile-main">Main: ${esc(p.main)}</span>` : ''}
+      </span>
+    </button>
+  `).join('');
 }
 
 // Wrapper used by the menu option buttons so picking a mode auto-closes
@@ -1237,12 +1418,17 @@ document.getElementById('inexp-input-r').addEventListener('keydown', e => {
   if (e.key === 'Enter') addPlayer('inexp', 'inexp-input-r');
 });
 
-// Escape cancels an open confirm sheet. Scoped to #confirm-modal so it
-// doesn't interfere with other modals or inputs.
+// Escape cancels an open confirm sheet first, otherwise navigates back from
+// the Profiles screen if it's open. Confirm has priority so Esc during the
+// discard-changes confirm doesn't accidentally double-pop the navigation.
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' &&
-      document.getElementById('confirm-modal').classList.contains('open')) {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('confirm-modal').classList.contains('open')) {
     resolveConfirm(false);
+    return;
+  }
+  if (currentScreen === 'profiles') {
+    goBackInProfiles();
   }
 });
 
@@ -1303,6 +1489,7 @@ if ('share' in navigator) {
 (async () => {
   await loadState();
   loadPresetsFromStorage();
+  loadProfilesFromStorage();
   render();
   if (splashSkipped) {
     hideSplash(); // remove the hidden splash element from the DOM immediately

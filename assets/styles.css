@@ -1085,7 +1085,6 @@ body:has(#menu-modal.open) #menu-btn line:nth-child(3) {
 /* Active view: on-screen. */
 .modal-sheet[data-view="main"]            .drawer-view-main,
 .modal-sheet[data-view="team-creation"]   .drawer-view-team-creation,
-.modal-sheet[data-view="profiles"]        .drawer-view-profiles,
 .modal-sheet[data-view="scheduling"]      .drawer-view-scheduling,
 .modal-sheet[data-view="options"]         .drawer-view-options {
   transform: translateX(0);
@@ -1095,7 +1094,6 @@ body:has(#menu-modal.open) #menu-btn line:nth-child(3) {
 
 /* Going forward into a sub-view: main slides off LEFT. */
 .modal-sheet[data-view="team-creation"][data-nav-direction="forward"] .drawer-view-main,
-.modal-sheet[data-view="profiles"][data-nav-direction="forward"]      .drawer-view-main,
 .modal-sheet[data-view="scheduling"][data-nav-direction="forward"]    .drawer-view-main,
 .modal-sheet[data-view="options"][data-nav-direction="forward"]       .drawer-view-main {
   transform: translateX(-100%);
@@ -1177,6 +1175,262 @@ body:has(#menu-modal.open) #menu-btn line:nth-child(3) {
   color: var(--muted);
   line-height: 1.5;
   margin: 0;
+}
+
+/* Profiles screen: full-page overlay that slides in from the right. Sits at
+   z-index 80 — below modal backdrops (100) so showConfirm can overlay it. */
+#profiles {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--bg);
+  transform: translateX(100%);
+  transition: transform 250ms cubic-bezier(0.2, 0, 0, 1);
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+}
+body[data-screen="profiles"] #profiles { transform: translateX(0); }
+body[data-screen="profiles"] header,
+body[data-screen="profiles"] #menu-btn { display: none; }
+
+/* Hide the + button when the form sub-view is open. Two-attribute trigger
+   so we don't have to rely on sibling selectors that depend on DOM order. */
+body[data-profiles-subview="form"] .profiles-add-btn { display: none; }
+
+/* Dedicated Profiles header bar - not .modal-header to avoid baseline-rule leak. */
+.profiles-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.profiles-back-btn,
+.profiles-add-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.profiles-back-btn:active,
+.profiles-add-btn:active { background: rgba(255, 255, 255, 0.04); }
+.profiles-back-btn svg,
+.profiles-add-btn svg { width: 22px; height: 22px; }
+.profiles-title {
+  flex: 1;
+  text-align: center;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+  transform: skewX(-6deg);
+}
+
+/* List ↔ form sub-view sliding (mirrors the drawer pattern). */
+.profiles-viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+.profiles-view {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: calc(env(safe-area-inset-bottom) + 16px);
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 250ms cubic-bezier(0.2, 0, 0, 1),
+              opacity 250ms cubic-bezier(0.2, 0, 0, 1);
+}
+.profiles-viewport[data-subview="list"] .profiles-view-list {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.profiles-viewport[data-subview="form"] .profiles-view-form {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+.profiles-viewport[data-subview="form"] .profiles-view-list {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+/* Profile cards in the list view. */
+.profiles-list {
+  display: flex;
+  flex-direction: column;
+}
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.profile-card:active { background: var(--surface); }
+.profile-avatar {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+.profile-avatar.exp   { background: rgba(77, 159, 255, 0.18); color: var(--exp); }
+.profile-avatar.inexp { background: rgba(46, 232, 160, 0.18); color: var(--inexp); }
+.profile-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.profile-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+.profile-skill-chip {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+.profile-skill-chip.exp   { color: var(--exp);   background: rgba(77, 159, 255, 0.12); }
+.profile-skill-chip.inexp { color: var(--inexp); background: rgba(46, 232, 160, 0.12); }
+.profile-main {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+
+/* Add/edit form. */
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+}
+.profile-form input,
+.profile-form textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+  width: 100%;
+}
+.profile-form textarea {
+  resize: vertical;
+  min-height: 72px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem;
+}
+.profile-skill-segmented {
+  display: flex;
+  gap: 8px;
+}
+.skill-seg-btn {
+  flex: 1;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.skill-seg-btn[aria-checked="true"].skill-seg-exp {
+  border-color: var(--exp);
+  background: rgba(77, 159, 255, 0.12);
+  color: var(--exp);
+}
+.skill-seg-btn[aria-checked="true"].skill-seg-inexp {
+  border-color: var(--inexp);
+  background: rgba(46, 232, 160, 0.12);
+  color: var(--inexp);
+}
+.profile-form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.btn-profile-save {
+  padding: 14px;
+  background: var(--exp-grad);
+  border: 1px solid var(--exp-border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.btn-profile-delete {
+  padding: 14px;
+  background: var(--danger-grad);
+  border: 1px solid var(--danger-border);
+  border-radius: 8px;
+  color: var(--danger);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
 }
 
 .modal-title {
@@ -1731,6 +1985,10 @@ body:has(#menu-modal.open) #menu-btn line:nth-child(3) {
   .drawer-view.is-entering .menu-option,
   .drawer-view.is-entering .menu-divider {
     animation: none;
+  }
+  #profiles,
+  .profiles-view {
+    transition: none;
   }
 }
 

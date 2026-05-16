@@ -18,7 +18,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=50">
+  <link rel="stylesheet" href="assets/styles.css?v=51">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -237,6 +237,66 @@
 
 </div>
 
+<!-- Profiles screen (full-page overlay, slides in from right) -->
+
+<div id="profiles">
+  <div class="profiles-header">
+    <button class="profiles-back-btn" aria-label="Back" onclick="goBackInProfiles()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+    </button>
+    <span class="profiles-title">Profiles</span>
+    <button class="profiles-add-btn" aria-label="Add profile" onclick="openAddProfileForm()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="profiles-viewport" data-subview="list">
+    <section class="profiles-view profiles-view-list">
+      <div class="profiles-list" id="profiles-list"></div>
+    </section>
+
+    <section class="profiles-view profiles-view-form">
+      <form class="profile-form" onsubmit="event.preventDefault(); saveProfileForm();">
+        <label class="form-field">
+          <span class="form-label">Name</span>
+          <input id="profile-name" type="text" maxlength="40" autocomplete="off" autocorrect="off" spellcheck="false"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+        </label>
+
+        <div class="form-field">
+          <span class="form-label">Skill level</span>
+          <div class="profile-skill-segmented" role="radiogroup" aria-label="Skill level">
+            <button type="button" class="skill-seg-btn skill-seg-exp"   role="radio" aria-checked="true"  onclick="setProfileFormSkill('exp')">Experienced</button>
+            <button type="button" class="skill-seg-btn skill-seg-inexp" role="radio" aria-checked="false" onclick="setProfileFormSkill('inexp')">Inexperienced</button>
+          </div>
+        </div>
+
+        <label class="form-field">
+          <span class="form-label">Main character</span>
+          <input id="profile-main" type="text" maxlength="32" autocomplete="off"
+                 placeholder="(optional)"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+        </label>
+
+        <label class="form-field">
+          <span class="form-label">Notes</span>
+          <textarea id="profile-notes" maxlength="200" rows="3" placeholder="(optional)"></textarea>
+        </label>
+
+        <div class="profile-form-actions">
+          <button type="submit" class="btn-profile-save">Save profile</button>
+          <button type="button" class="btn-profile-delete" id="profile-delete-btn" hidden onclick="deleteCurrentProfile()">Delete</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</div>
+
 <!-- Menu (pairing mode) modal -->
 
 <div class="modal-backdrop" id="menu-modal" onclick="handleMenuBackdropClick(event)">
@@ -263,7 +323,7 @@
               <span class="menu-option-desc" id="menu-team-creation-desc">Currently: Full 2v2</span>
             </span>
           </button>
-          <button class="menu-option" id="menu-profiles" role="menuitem" onclick="openSubView('profiles')">
+          <button class="menu-option" id="menu-profiles" role="menuitem" onclick="openProfilesScreen()">
             <span class="menu-option-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="8" r="4"/>
@@ -322,21 +382,6 @@
             <span class="menu-option-title">Split 2v2</span>
             <span class="menu-option-desc">Same-skill teams: exp + exp and inexp + inexp</span>
           </button>
-        </div>
-      </section>
-
-      <section class="drawer-view drawer-view-profiles">
-        <div class="modal-header sub-header">
-          <button class="drawer-back-btn" aria-label="Back to main menu" onclick="goBackToMain()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-          </button>
-          <span class="modal-title">Profiles</span>
-        </div>
-        <div class="scheduling-placeholder">
-          <p class="placeholder-title">Coming soon</p>
-          <p class="placeholder-body">Per-player profiles with stats, preferred mains, and team history.</p>
         </div>
       </section>
 
@@ -507,7 +552,7 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=44"></script>
+<script src="assets/app.js?v=45"></script>
 
 </body>
 </html>
