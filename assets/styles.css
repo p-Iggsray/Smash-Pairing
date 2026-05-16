@@ -1638,6 +1638,410 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   cursor: pointer;
 }
 
+/* ===== Scheduling screen ===========================================
+   Full-page overlay parallel to #profiles. Same slide-in mechanism,
+   same header styling (reuses .profiles-header / .profiles-back-btn /
+   .profiles-title). The .schedule-viewport sub-view machine mirrors
+   .profiles-viewport: heatmap, profile-picker, profile-shifts, shift-form. */
+#schedule {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--bg);
+  transform: translateX(100%);
+  transition: transform 250ms cubic-bezier(0.2, 0, 0, 1);
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+}
+body[data-screen="schedule"] #schedule { transform: translateX(0); }
+body[data-screen="schedule"] header,
+body[data-screen="schedule"] #menu-btn { display: none; }
+
+.schedule-edit-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.schedule-edit-btn:active { background: rgba(255, 255, 255, 0.04); }
+.schedule-edit-btn svg { width: 22px; height: 22px; }
+
+/* The pencil only makes sense from the heatmap; hide it elsewhere so the
+   header doesn't suggest editing the picker/shifts/form itself. */
+body[data-schedule-subview="profile-picker"] .schedule-edit-btn,
+body[data-schedule-subview="profile-shifts"] .schedule-edit-btn,
+body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none; }
+
+.schedule-viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+.schedule-view {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  padding-bottom: calc(env(safe-area-inset-bottom) + 16px);
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 250ms cubic-bezier(0.2, 0, 0, 1),
+              opacity 250ms cubic-bezier(0.2, 0, 0, 1);
+}
+.schedule-viewport[data-subview="heatmap"] .schedule-view-heatmap,
+.schedule-viewport[data-subview="profile-picker"]  .schedule-view-profile-picker,
+.schedule-viewport[data-subview="profile-shifts"]  .schedule-view-profile-shifts,
+.schedule-viewport[data-subview="shift-form"]      .schedule-view-shift-form {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Anything to the left of the current subview slides off-left to match
+   the right-side slide-in (parallels the .profiles-viewport rules). */
+.schedule-viewport[data-subview="profile-picker"] .schedule-view-heatmap,
+.schedule-viewport[data-subview="profile-shifts"] .schedule-view-heatmap,
+.schedule-viewport[data-subview="profile-shifts"] .schedule-view-profile-picker,
+.schedule-viewport[data-subview="shift-form"]     .schedule-view-heatmap,
+.schedule-viewport[data-subview="shift-form"]     .schedule-view-profile-picker,
+.schedule-viewport[data-subview="shift-form"]     .schedule-view-profile-shifts {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+/* Date-range picker row at the top of the heatmap subview. */
+.schedule-range-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.schedule-range-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.schedule-range-field input[type="date"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 16px; /* prevents iOS auto-zoom */
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Top-3 best-slots callout strip. Cards are tappable - tapping snap-scrolls
+   the heatmap to the target cell. */
+.schedule-best-slots {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.schedule-best-slots::-webkit-scrollbar { display: none; }
+.schedule-best-slot-card {
+  flex: 1 0 auto;
+  min-width: 100px;
+  padding: 8px 10px;
+  background: rgba(46, 232, 160, 0.10);
+  border: 1px solid rgba(46, 232, 160, 0.30);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  font-family: inherit;
+}
+.schedule-best-slot-card:active { background: rgba(46, 232, 160, 0.18); }
+.schedule-best-slot-rank {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--inexp);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.schedule-best-slot-when {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.schedule-best-slot-free {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+.schedule-best-slot-card.is-empty {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--dim);
+  cursor: default;
+}
+
+/* Heatmap: CSS grid with sticky hour labels (left) and sticky date headers
+   (top). overflow-x: auto on the wrapper lets date columns scroll. */
+.schedule-heatmap-scroll {
+  /* Both axes scroll inside this bounded container so sticky hour labels
+     (left axis) and date headers (top axis) anchor to the same scroll
+     parent. Without overflow on both axes, sticky-top stops working. */
+  overflow: auto;
+  max-height: 60vh;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  -webkit-overflow-scrolling: touch;
+}
+.schedule-heatmap {
+  display: grid;
+  grid-auto-rows: 26px;
+  grid-template-rows: 32px repeat(24, 26px);
+  /* grid-template-columns is set inline by JS as the date count varies. */
+}
+.schedule-heatmap-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+.schedule-heatmap-cell.is-hour-label,
+.schedule-heatmap-cell.is-date-header {
+  background: var(--surface);
+  color: var(--dim);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.schedule-heatmap-cell.is-hour-label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+.schedule-heatmap-cell.is-date-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex-direction: column;
+  gap: 0;
+  padding: 2px 0;
+  line-height: 1.1;
+}
+.schedule-heatmap-cell.is-corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  background: var(--surface);
+}
+.schedule-heatmap-cell .date-dow {
+  font-size: 0.6rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.schedule-heatmap-cell .date-md {
+  font-size: 0.7rem;
+  color: var(--text);
+  font-weight: 700;
+}
+/* 5-bucket color scale: red-tinted -> neutral -> green-tinted. Discrete
+   buckets read more legibly on a dense 24x N grid than a continuous ramp. */
+.schedule-heatmap-cell[data-bucket="0"] { background: rgba(239, 68, 68, 0.18);  color: rgba(239, 68, 68, 0.85); }
+.schedule-heatmap-cell[data-bucket="1"] { background: rgba(239, 68, 68, 0.08);  color: var(--dim); }
+.schedule-heatmap-cell[data-bucket="2"] { background: rgba(255, 201, 77, 0.10); color: var(--set); }
+.schedule-heatmap-cell[data-bucket="3"] { background: rgba(46, 232, 160, 0.14); color: var(--inexp); }
+.schedule-heatmap-cell[data-bucket="4"] { background: rgba(46, 232, 160, 0.30); color: var(--inexp); font-weight: 700; }
+.schedule-heatmap-cell.is-target-flash {
+  outline: 2px solid var(--set);
+  outline-offset: -2px;
+}
+.schedule-heatmap-empty {
+  text-align: center;
+  margin-top: 24px;
+  color: var(--dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+}
+
+/* Profile-picker subview - reuses .profiles-list / .profile-card. */
+.schedule-picker-hint {
+  text-align: center;
+  margin-bottom: 12px;
+  color: var(--dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+}
+
+/* Profile-shifts subview: header + list of shift rows + Add button. */
+.schedule-shifts-header { margin-bottom: 12px; }
+.schedule-shifts-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  margin: 0;
+}
+.schedule-shifts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.schedule-shifts-actions { display: flex; }
+.schedule-shifts-actions .btn-profile-save { flex: 1; }
+.schedule-shifts-date-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.schedule-shifts-date-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+  margin-top: 8px;
+}
+.schedule-shifts-date-group:first-child .schedule-shifts-date-label { margin-top: 0; }
+.schedule-shift-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+}
+.schedule-shift-row:active { background: var(--surface); }
+.schedule-shift-row .shift-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  flex: 1;
+}
+.schedule-shift-row .shift-chev {
+  width: 16px;
+  height: 16px;
+  color: var(--dim);
+  flex-shrink: 0;
+}
+.schedule-shifts-empty {
+  text-align: center;
+  padding: 20px 10px;
+  color: var(--dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+}
+
+/* Shift-form subview. */
+.schedule-recent-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.schedule-recent-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.schedule-recent-chip {
+  padding: 6px 10px;
+  background: rgba(77, 159, 255, 0.10);
+  border: 1px solid rgba(77, 159, 255, 0.30);
+  border-radius: 999px;
+  color: var(--exp);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.schedule-recent-chip:active { background: rgba(77, 159, 255, 0.20); }
+
+.schedule-time-row {
+  display: flex;
+  gap: 10px;
+}
+.schedule-time-row .form-field { flex: 1; }
+.schedule-time-row select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 16px;
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.schedule-hour-hint {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--dim);
+  margin: 0;
+}
+.schedule-hour-hint.is-error { color: var(--danger); }
+
+.schedule-date-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.schedule-date-pill {
+  padding: 6px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  line-height: 1.2;
+  text-align: center;
+}
+.schedule-date-pill .pill-dow {
+  display: block;
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.schedule-date-pill.is-on {
+  background: rgba(255, 201, 77, 0.18);
+  border-color: rgba(255, 201, 77, 0.60);
+  color: var(--set);
+}
+.schedule-date-pill.is-on .pill-dow { color: var(--set); }
+
 .modal-title {
   font-size: 1.05rem;
   font-weight: 800;
@@ -2192,7 +2596,9 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
     animation: none;
   }
   #profiles,
-  .profiles-view {
+  .profiles-view,
+  #schedule,
+  .schedule-view {
     transition: none;
   }
 }
