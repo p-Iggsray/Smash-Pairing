@@ -1,24 +1,23 @@
-// Capture the splash boot time as early as possible so we can honor a
-// minimum visible duration regardless of how fast state loads.
-const splashStartTime = Date.now();
-const SPLASH_MIN_MS   = 2000; // boot-screen beat; iOS launch icon already shows for ~1s
-const SPLASH_FADE_MS  = 500;
-
 const APP_VERSION = '0.1.0';
 
+// Splash timing is now driven entirely by the CSS animation
+// `splash-master` (2500ms). Keeping the duration in sync with the CSS
+// is a safety-fallback only - if `animationend` somehow doesn't fire
+// (browser bug, tab backgrounded mid-animation), we force-remove the
+// splash after SPLASH_FALLBACK_MS so the app never gets stuck behind
+// the boot screen.
+const SPLASH_FALLBACK_MS = 3000;
+
 // True when the inline head script tagged this load as a repeat-in-session
-// (e.g. a service-worker controllerchange reload). The splash is already
-// hidden by CSS in that case so we only need to remove the stale element.
+// (e.g. a service-worker controllerchange reload). The CSS rule
+// `html.splash-skip #splash { display: none }` already hid the element;
+// we only need to remove it from the DOM and clear the body-bg shift.
 const splashSkipped = document.documentElement.classList.contains('splash-skip');
 
-function hideSplash() {
+function removeSplash() {
+  document.documentElement.classList.remove('splash-showing');
   const splash = document.getElementById('splash');
-  if (!splash) return;
-  if (splashSkipped) { splash.remove(); return; }
-  splash.classList.add('hidden');
-  // Remove from the DOM once the fade has finished so it stops capturing
-  // taps and stops painting a full-bleed layer behind the app.
-  setTimeout(() => splash.remove(), SPLASH_FADE_MS + 100);
+  if (splash) splash.remove();
 }
 
 // Register a network-first service worker so the home-screen PWA
@@ -1645,14 +1644,36 @@ if ('share' in navigator) {
 })();
 
 (async () => {
-  await loadState();
-  loadPresetsFromStorage();
-  loadProfilesFromStorage();
-  render();
+  // State load happens in parallel with the splash animation; both
+  // must finish before we tear the splash down. In practice the state
+  // load completes in <50ms and the CSS animation is the long pole,
+  // but the Promise.all keeps us safe if state ever lags.
+  const stateReady = (async () => {
+    await loadState();
+    loadPresetsFromStorage();
+    loadProfilesFromStorage();
+    render();
+  })();
+
   if (splashSkipped) {
-    hideSplash(); // remove the hidden splash element from the DOM immediately
-  } else {
-    const wait = Math.max(0, SPLASH_MIN_MS - (Date.now() - splashStartTime));
-    setTimeout(hideSplash, wait);
+    await stateReady;
+    removeSplash();
+    return;
   }
+
+  const splash = document.getElementById('splash');
+  const animationDone = new Promise(resolve => {
+    if (!splash) { resolve(); return; }
+    // animationend bubbles, so filter to the master fade on the splash
+    // itself (not Kirby / title / tagline child animations).
+    splash.addEventListener('animationend', e => {
+      if (e.target === splash && e.animationName === 'splash-master') {
+        resolve();
+      }
+    });
+    setTimeout(resolve, SPLASH_FALLBACK_MS);
+  });
+
+  await Promise.all([stateReady, animationDone]);
+  removeSplash();
 })();

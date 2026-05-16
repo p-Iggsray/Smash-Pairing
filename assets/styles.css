@@ -2197,25 +2197,42 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   }
 }
 
+/* While the splash is showing, paint body in the splash-gradient edge
+   color so any iOS-Safari viewport-mismatch gap doesn't reveal the
+   app's dark --bg as a "black bar at the bottom." Cleared from the
+   <html> element as soon as the splash element is removed. */
+html.splash-showing body { background-color: #3a0606; }
+
+/* Skip-mode set by the inline head script when the splash has already
+   played this session - hide the element from the very first paint. */
+html.splash-skip #splash { display: none; }
+
 #splash {
   position: fixed;
   inset: 0;
+  /* Explicit dynamic-viewport sizing as belt+braces alongside inset:0,
+     because iOS Safari's position:fixed historically binds to the
+     layout viewport and doesn't always cover the full visible area. */
+  width: 100vw;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
   z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
   background: radial-gradient(ellipse at 50% 40%, #e8442e 0%, #a01818 55%, #3a0606 100%);
-  transition: opacity 0.5s ease;
   padding:
     env(safe-area-inset-top)
     env(safe-area-inset-right)
     env(safe-area-inset-bottom)
     env(safe-area-inset-left);
-}
-
-#splash.hidden {
-  opacity: 0;
-  pointer-events: none;
+  /* Master fade is part of the same 2.5s timeline that drives the
+     Kirby bounce - 92% of the duration is opacity 1, the last 8% is
+     the fade-out. JS listens for animationend on this element to
+     remove it from the DOM. forwards keeps the end state (opacity 0)
+     so there's no flash before the JS removal fires. */
+  animation: splash-master 2.5s ease forwards;
 }
 
 .splash-content {
@@ -2225,11 +2242,15 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   gap: 22px;
 }
 
+/* Kirby drops in from above, lands with a squash-and-stretch, then
+   settles to a gentle hold. transform-origin near the feet keeps the
+   bottom of Kirby planted during the impact compress. */
 .splash-kirby {
   width: 180px;
   height: 180px;
   filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.35));
-  animation: splash-float 1.6s ease-in-out infinite alternate;
+  transform-origin: 50% 75%;
+  animation: splash-kirby-bounce 2.5s linear forwards;
 }
 
 .splash-title {
@@ -2241,8 +2262,9 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   color: #fffcef;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
   margin-top: 4px;
-  /* Smash-logo lean - matches the header H1 brand tier. */
-  transform: skewX(-10deg);
+  opacity: 0;
+  transform: skewX(-10deg) translateY(20px);
+  animation: splash-title-in 2.5s ease-out forwards;
 }
 
 .splash-tagline {
@@ -2252,15 +2274,68 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   letter-spacing: 0.18em;
   text-transform: uppercase;
   margin-top: -8px;
+  opacity: 0;
+  animation: splash-tagline-in 2.5s ease-out forwards;
 }
 
-@keyframes splash-float {
-  from { transform: translateY(-7px); }
-  to   { transform: translateY(7px); }
+@keyframes splash-master {
+  0%, 92% { opacity: 1; }
+  100%    { opacity: 0; }
+}
+
+@keyframes splash-kirby-bounce {
+  /* Off-screen above */
+  0%   { transform: translateY(-110vh) scale(1, 1); }
+  /* Drop accelerates - lands at 28% (700ms) */
+  28%  { transform: translateY(0)      scale(1, 1); }
+  /* Impact squash */
+  32%  { transform: translateY(0)      scale(1.35, 0.65); }
+  /* Rebound stretch up */
+  38%  { transform: translateY(-32px)  scale(0.82, 1.22); }
+  /* Falls back to ground */
+  44%  { transform: translateY(0)      scale(1, 1); }
+  /* Second smaller squash */
+  47%  { transform: translateY(0)      scale(1.18, 0.85); }
+  /* Second smaller rebound */
+  52%  { transform: translateY(-14px)  scale(0.93, 1.08); }
+  /* Settles */
+  56%  { transform: translateY(0)      scale(1, 1); }
+  /* Gentle hold-breath float */
+  72%  { transform: translateY(-6px)   scale(1, 1); }
+  88%  { transform: translateY(0)      scale(1, 1); }
+  100% { transform: translateY(0)      scale(1, 1); }
+}
+
+@keyframes splash-title-in {
+  0%, 40%  { opacity: 0; transform: skewX(-10deg) translateY(20px); }
+  56%      { opacity: 1; transform: skewX(-10deg) translateY(0); }
+  88%      { opacity: 1; transform: skewX(-10deg) translateY(0); }
+  100%     { opacity: 0; transform: skewX(-10deg) translateY(0); }
+}
+
+@keyframes splash-tagline-in {
+  0%, 56%  { opacity: 0; }
+  68%      { opacity: 1; }
+  88%      { opacity: 1; }
+  100%     { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .splash-kirby { animation: none; }
+  /* Drop the choreography - show the splash composed and still, fade
+     it out at the same 2.5s mark. */
+  .splash-kirby {
+    animation: none;
+    transform: none;
+  }
+  .splash-title {
+    animation: none;
+    opacity: 1;
+    transform: skewX(-10deg);
+  }
+  .splash-tagline {
+    animation: none;
+    opacity: 1;
+  }
 }
 
 /* Smash slant — every Barlow Condensed uppercase element gets the -6deg
