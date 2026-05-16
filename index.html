@@ -18,7 +18,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=51">
+  <link rel="stylesheet" href="assets/styles.css?v=52">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -257,7 +257,33 @@
 
   <div class="profiles-viewport" data-subview="list">
     <section class="profiles-view profiles-view-list">
+      <div class="profiles-backup-banner" id="profiles-backup-banner" hidden onclick="scrollToBackupSection()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2L1 21h22L12 2z"/>
+          <line x1="12" y1="9" x2="12" y2="14"/>
+          <line x1="12" y1="17" x2="12" y2="17.01"/>
+        </svg>
+        <div class="banner-text">
+          <span class="banner-title">Back up your profiles</span>
+          <span class="banner-sub" id="profiles-backup-banner-sub">Not backed up yet</span>
+        </div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </div>
+
       <div class="profiles-list" id="profiles-list"></div>
+
+      <div class="profiles-backup" id="profiles-backup-section">
+        <span class="form-label">Backup</span>
+        <div class="profiles-backup-actions">
+          <button type="button" class="btn-profile-save" onclick="exportProfiles()">Export to file</button>
+          <button type="button" class="btn-profile-import" onclick="triggerImportProfiles()">Import from file</button>
+        </div>
+        <p class="profiles-backup-status" id="profiles-backup-status">No exports yet</p>
+      </div>
+
+      <input type="file" id="profiles-import-file" accept="application/json,.json" hidden onchange="handleImportFile(event)">
     </section>
 
     <section class="profiles-view profiles-view-form">
@@ -501,6 +527,23 @@
   </div>
 </div>
 
+<!-- Import choice modal (Replace all / Merge / Cancel) -->
+
+<div class="modal-backdrop" id="import-choice-modal" onclick="handleImportChoiceBackdropClick(event)">
+  <div class="modal-sheet is-input">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title">Import profiles</span>
+    </div>
+    <p class="modal-body" id="import-choice-body"></p>
+    <div class="modal-actions modal-actions-stacked">
+      <button class="btn-import-replace" onclick="resolveImportChoice('replace')">Replace all profiles</button>
+      <button class="btn-import-merge" onclick="resolveImportChoice('merge')">Merge with existing</button>
+      <button class="btn-close-modal" onclick="resolveImportChoice('cancel')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- About modal -->
 
 <div class="modal-backdrop" id="about-modal" onclick="handleAboutBackdropClick(event)">
@@ -552,7 +595,7 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=45"></script>
+<script src="assets/app.js?v=46"></script>
 
 </body>
 </html>
