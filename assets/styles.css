@@ -1433,6 +1433,115 @@ body[data-profiles-subview="form"] .profiles-add-btn { display: none; }
   cursor: pointer;
 }
 
+/* Profile-backup nudge banner. Gold-tinted (uses --set), pulses gently so
+   it reads as "needs action" without being alarming. Only shown when the
+   user has unbacked profile changes. */
+.profiles-backup-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  background: rgba(255, 201, 77, 0.10);
+  border: 1px solid rgba(255, 201, 77, 0.35);
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  animation: backup-banner-pulse 2.4s ease-in-out infinite;
+}
+.profiles-backup-banner:active { background: rgba(255, 201, 77, 0.18); }
+.profiles-backup-banner svg { width: 20px; height: 20px; color: var(--set); flex-shrink: 0; }
+.profiles-backup-banner .banner-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.profiles-backup-banner .banner-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--set);
+  text-transform: uppercase;
+}
+.profiles-backup-banner .banner-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+
+@keyframes backup-banner-pulse {
+  0%, 100% { border-color: rgba(255, 201, 77, 0.35); }
+  50%      { border-color: rgba(255, 201, 77, 0.7); }
+}
+
+/* Backup section at the bottom of the Profiles list view. */
+.profiles-backup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.profiles-backup .form-label { margin-bottom: 4px; }
+.profiles-backup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.btn-profile-import {
+  padding: 14px;
+  background: var(--inexp-grad);
+  border: 1px solid var(--inexp-border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.profiles-backup-status {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--dim);
+  margin: 0;
+  text-align: center;
+}
+
+/* Vertical-button variant of .modal-actions for the 3-button import-choice
+   modal. The base .modal-actions row layout would crowd at this many. */
+.modal-actions-stacked {
+  flex-direction: column;
+  gap: 8px;
+}
+.btn-import-replace,
+.btn-import-merge {
+  padding: 14px;
+  border-radius: 8px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  width: 100%;
+}
+.btn-import-replace {
+  background: var(--danger-grad);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+}
+.btn-import-merge {
+  background: var(--exp-grad);
+  border: 1px solid var(--exp-border);
+  color: var(--text);
+}
+
 .modal-title {
   font-size: 1.05rem;
   font-weight: 800;
@@ -1990,6 +2099,7 @@ body[data-profiles-subview="form"] .profiles-add-btn { display: none; }
   .profiles-view {
     transition: none;
   }
+  .profiles-backup-banner { animation: none; }
 }
 
 #splash {
