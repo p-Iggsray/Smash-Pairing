@@ -1396,22 +1396,24 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
 }
 
 .main-tile {
-  padding: 10px 6px;
-  min-height: 56px;
+  padding: 8px 4px;
+  min-height: 92px;
   background: rgba(77, 159, 255, 0.06);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text);
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   text-align: center;
-  line-height: 1.15;
+  line-height: 1.1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   overflow-wrap: break-word;
@@ -1425,10 +1427,25 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   border-color: rgba(255, 201, 77, 0.6);
   color: var(--set);
 }
+.main-tile-icon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.main-tile-name {
+  display: block;
+  width: 100%;
+}
 .main-tile-clear {
   grid-column: 1 / -1;
   background: var(--surface);
   font-size: 0.85rem;
+  min-height: 48px;
+  flex-direction: row;
+  gap: 0;
 }
 
 .main-picker-empty {
@@ -1478,6 +1495,21 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
 }
 .profile-avatar.exp   { background: rgba(77, 159, 255, 0.18); color: var(--exp); }
 .profile-avatar.inexp { background: rgba(46, 232, 160, 0.18); color: var(--inexp); }
+/* Icon variant: profile.main matches a known SSBU fighter id, so we
+   render their stock icon in place of the letter. The skill-tinted
+   background still shows through the icon's transparent corners,
+   preserving the at-a-glance skill cue. */
+.profile-avatar.profile-avatar-icon {
+  padding: 0;
+  overflow: hidden;
+}
+.profile-avatar.profile-avatar-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  -webkit-user-drag: none;
+}
 .profile-info {
   flex: 1;
   min-width: 0;

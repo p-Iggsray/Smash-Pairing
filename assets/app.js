@@ -854,16 +854,22 @@ function renderProfilesList() {
     container.innerHTML = '<div class="list-empty">No profiles yet. Tap + to add your first one.</div>';
     return;
   }
-  container.innerHTML = sorted.map(p => `
-    <button class="profile-card" onclick="openEditProfileForm(${p.id})">
-      <span class="profile-avatar ${p.skill}">${esc(p.name.charAt(0).toUpperCase())}</span>
-      <span class="profile-info">
-        <span class="profile-name">${esc(p.name)}</span>
-        <span class="profile-skill-chip ${p.skill}">${p.skill === 'exp' ? 'Experienced' : 'Inexperienced'}</span>
-        ${p.main ? `<span class="profile-main">Main: ${esc(getFighterName(p.main))}</span>` : ''}
-      </span>
-    </button>
-  `).join('');
+  container.innerHTML = sorted.map(p => {
+    const fid = findFighterIdByText(p.main);
+    const avatar = fid
+      ? `<span class="profile-avatar profile-avatar-icon ${p.skill}"><img src="assets/fighters/${fid}.webp" alt="" loading="lazy"></span>`
+      : `<span class="profile-avatar ${p.skill}">${esc(p.name.charAt(0).toUpperCase())}</span>`;
+    return `
+      <button class="profile-card" onclick="openEditProfileForm(${p.id})">
+        ${avatar}
+        <span class="profile-info">
+          <span class="profile-name">${esc(p.name)}</span>
+          <span class="profile-skill-chip ${p.skill}">${p.skill === 'exp' ? 'Experienced' : 'Inexperienced'}</span>
+          ${p.main ? `<span class="profile-main">Main: ${esc(getFighterName(p.main))}</span>` : ''}
+        </span>
+      </button>
+    `;
+  }).join('');
 }
 
 // ---- Main-character picker (Profiles form sub-view) ----
@@ -888,7 +894,10 @@ function renderMainPicker() {
   const tiles = [
     `<button type="button" class="main-tile main-tile-clear${noMainSelected ? ' is-selected' : ''}" onclick="pickMain('')">No main</button>`,
     ...SSBU_FIGHTERS.map(f => `
-      <button type="button" class="main-tile${currentId === f.id ? ' is-selected' : ''}" data-fighter-name="${esc(f.name.toLowerCase())}" onclick="pickMain('${f.id}')">${esc(f.name)}</button>
+      <button type="button" class="main-tile${currentId === f.id ? ' is-selected' : ''}" data-fighter-name="${esc(f.name.toLowerCase())}" onclick="pickMain('${f.id}')">
+        <img class="main-tile-icon" src="assets/fighters/${f.id}.webp" alt="" loading="lazy">
+        <span class="main-tile-name">${esc(f.name)}</span>
+      </button>
     `).join(''),
   ];
   grid.innerHTML = tiles.join('');
