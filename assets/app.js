@@ -145,6 +145,7 @@ let currentScheduleProfileId = null;
 let editingShift = null;                 // existing shift being edited, or null when adding
 let pendingShiftReturnDate = null;       // date the user came from (pre-selects that pill)
 let shiftFormSelectedDates = new Set();  // selected date pills, in-memory only
+let shiftFormAllDay = false;             // current state of the "unavailable all day" toggle
 let scheduleRange = null;                // { startDate, endDate } loaded from storage
 let _shiftIdCounter = 0;
 
@@ -1366,7 +1367,7 @@ function renderProfileShiftsView() {
     for (const s of items) {
       parts.push(`
         <button type="button" class="schedule-shift-row" onclick="openShiftForm(${s.id}, '${esc(date)}')">
-          <span class="shift-time">${esc(formatHour12(s.startHour))} – ${esc(s.endHour === 24 ? '12 AM' : formatHour12(s.endHour))}</span>
+          <span class="shift-time">${esc(formatShiftRange(s.startHour, s.endHour))}</span>
           <svg class="shift-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="9 6 15 12 9 18"/>
           </svg>
@@ -1386,6 +1387,7 @@ function openShiftForm(shiftId, comeFromDate) {
   editingShift = null;
   pendingShiftReturnDate = comeFromDate || null;
   shiftFormSelectedDates = new Set();
+  shiftFormAllDay = false;
 
   let startHour = 9;
   let endHour   = 17;
@@ -1393,8 +1395,15 @@ function openShiftForm(shiftId, comeFromDate) {
     const existing = (p.shifts || []).find(s => s.id === shiftId);
     if (existing) {
       editingShift = { ...existing };
-      startHour = existing.startHour;
-      endHour   = existing.endHour;
+      // (0, 24) is the canonical "unavailable all day" range. Preserve the
+      // 9-5 defaults on the hidden hour selects so toggling off mid-edit
+      // doesn't snap to a confusing "12 AM - 12 AM" state.
+      if (existing.startHour === 0 && existing.endHour === 24) {
+        shiftFormAllDay = true;
+      } else {
+        startHour = existing.startHour;
+        endHour   = existing.endHour;
+      }
       shiftFormSelectedDates.add(existing.date);
     }
   } else if (comeFromDate) {
@@ -1408,8 +1417,26 @@ function openShiftForm(shiftId, comeFromDate) {
   renderShiftRecentChips();
   renderShiftDatePills();
   updateShiftHourHint();
+  applyShiftAllDayUI();
 
   setScheduleSubview('shift-form');
+}
+
+function toggleShiftAllDay() {
+  shiftFormAllDay = !shiftFormAllDay;
+  applyShiftAllDayUI();
+}
+
+function applyShiftAllDayUI() {
+  const btn      = document.getElementById('schedule-allday-btn');
+  const timeRow  = document.getElementById('schedule-time-row');
+  const hint     = document.getElementById('schedule-hour-hint');
+  if (btn) {
+    btn.classList.toggle('is-on', shiftFormAllDay);
+    btn.setAttribute('aria-checked', shiftFormAllDay ? 'true' : 'false');
+  }
+  if (timeRow) timeRow.hidden = shiftFormAllDay;
+  if (hint)    hint.hidden    = shiftFormAllDay;
 }
 
 function populateHourSelect(elId, selected, isEnd) {
@@ -1435,15 +1462,33 @@ function renderShiftRecentChips() {
   if (!recent.length) { row.hidden = true; chips.innerHTML = ''; return; }
   row.hidden = false;
   chips.innerHTML = recent.map(r => {
-    const endLabel = r.endHour === 24 ? '12 AM' : formatHour12(r.endHour);
-    return `<button type="button" class="schedule-recent-chip" onclick="applyRecentChip(${r.startHour}, ${r.endHour})">${esc(formatHour12(r.startHour))} – ${esc(endLabel)}</button>`;
+    const label = formatShiftRange(r.startHour, r.endHour);
+    return `<button type="button" class="schedule-recent-chip" onclick="applyRecentChip(${r.startHour}, ${r.endHour})">${esc(label)}</button>`;
   }).join('');
 }
 
 function applyRecentChip(startHour, endHour) {
+  // A 0-24 range is the canonical "all day" form. Tapping that chip should
+  // flip the toggle ON rather than show "12 AM - 12 AM" in the hour selects.
+  if (startHour === 0 && endHour === 24) {
+    shiftFormAllDay = true;
+    applyShiftAllDayUI();
+    return;
+  }
+  shiftFormAllDay = false;
+  applyShiftAllDayUI();
   populateHourSelect('shift-start-hour', startHour, false);
   populateHourSelect('shift-end-hour',   endHour,   true);
   updateShiftHourHint();
+}
+
+// Shared label for a (startHour, endHour) range. (0, 24) is shown as
+// "All day"; (h, 24) reads as "h - 12 AM" so the next-day implication
+// is clearer than "h - 24:00".
+function formatShiftRange(startHour, endHour) {
+  if (startHour === 0 && endHour === 24) return 'All day';
+  const endLabel = endHour === 24 ? '12 AM' : formatHour12(endHour);
+  return `${formatHour12(startHour)} – ${endLabel}`;
 }
 
 function renderShiftDatePills() {
@@ -1501,10 +1546,16 @@ function updateShiftHourHint() {
 function saveShiftForm() {
   const p = getProfileById(currentScheduleProfileId);
   if (!p) return;
-  const { startHour, endHour } = getShiftFormHours();
-  if (endHour === startHour) {
-    showToast('Start and end hour must differ', { variant: 'error' });
-    return;
+  let startHour, endHour;
+  if (shiftFormAllDay) {
+    startHour = 0;
+    endHour   = 24;
+  } else {
+    ({ startHour, endHour } = getShiftFormHours());
+    if (endHour === startHour) {
+      showToast('Start and end hour must differ', { variant: 'error' });
+      return;
+    }
   }
   const dates = Array.from(shiftFormSelectedDates).sort();
   if (!dates.length) {
