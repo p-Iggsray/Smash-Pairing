@@ -1337,7 +1337,8 @@ function renderScheduleProfilePicker() {
 // element when nothing matches.
 function filterScheduleProfilePicker() {
   const input = document.getElementById('schedule-picker-search');
-  const q = input ? input.value.trim().toLowerCase() : '';
+  const raw = input ? input.value : '';
+  const q = raw.trim().toLowerCase();
   const cards = document.querySelectorAll('#schedule-profile-picker-list .profile-card');
   let visible = 0;
   cards.forEach(c => {
@@ -1347,6 +1348,16 @@ function filterScheduleProfilePicker() {
   });
   const empty = document.getElementById('schedule-picker-empty');
   if (empty) empty.hidden = !(q && visible === 0);
+  const clear = document.getElementById('schedule-picker-search-clear');
+  if (clear) clear.hidden = raw.length === 0;
+}
+
+function clearScheduleProfilePickerSearch() {
+  const input = document.getElementById('schedule-picker-search');
+  if (!input) return;
+  input.value = '';
+  filterScheduleProfilePicker();
+  input.focus();
 }
 
 function pickScheduleProfile(id) {
