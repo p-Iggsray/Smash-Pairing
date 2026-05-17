@@ -18,7 +18,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=61">
+  <link rel="stylesheet" href="assets/styles.css?v=62">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -338,10 +338,11 @@
 
 <div id="schedule">
   <div class="profiles-header">
-    <button class="profiles-back-btn" aria-label="Back" onclick="goBackInSchedule()">
+    <button class="profiles-back-btn schedule-back-btn" id="schedule-back-btn" aria-label="Back" onclick="goBackInSchedule()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polyline points="15 18 9 12 15 6"/>
       </svg>
+      <span class="schedule-back-label" id="schedule-back-label">Back</span>
     </button>
     <span class="profiles-title" id="schedule-title">Scheduling</span>
     <button class="schedule-edit-btn" id="schedule-edit-btn" aria-label="Edit availability" onclick="openScheduleProfilePicker()">
@@ -375,7 +376,6 @@
     <section class="schedule-view schedule-view-profile-picker">
       <p class="schedule-picker-hint">Pick a profile to edit their work shifts.</p>
       <div class="profiles-list" id="schedule-profile-picker-list"></div>
-      <button type="button" class="btn-close-modal schedule-picker-back" onclick="goBackInSchedule()">Back to calendar</button>
     </section>
 
     <section class="schedule-view schedule-view-profile-shifts">
@@ -385,7 +385,6 @@
       <div class="schedule-shifts-list" id="schedule-shifts-list"></div>
       <div class="schedule-shifts-actions">
         <button type="button" class="btn-profile-save" onclick="openShiftForm(null, null)">Add shift</button>
-        <button type="button" class="btn-close-modal" onclick="goBackInSchedule()">Back to profiles</button>
       </div>
     </section>
 
@@ -426,7 +425,6 @@
         <div class="profile-form-actions">
           <button type="submit" class="btn-profile-save">Save shift</button>
           <button type="button" class="btn-profile-delete" id="btn-shift-delete" hidden onclick="deleteEditingShift()">Delete shift</button>
-          <button type="button" class="btn-close-modal" onclick="goBackInSchedule()">Cancel</button>
         </div>
       </form>
     </section>
@@ -675,7 +673,7 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=53"></script>
+<script src="assets/app.js?v=54"></script>
 
 </body>
 </html>

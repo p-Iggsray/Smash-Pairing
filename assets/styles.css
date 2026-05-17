@@ -1675,6 +1675,28 @@ body[data-screen="schedule"] #menu-btn { display: none; }
 .schedule-edit-btn:active { background: rgba(255, 255, 255, 0.04); }
 .schedule-edit-btn svg { width: 22px; height: 22px; }
 
+/* Labeled back button in the Scheduling header. Overrides the icon-only
+   .profiles-back-btn (40x40 square) to fit the chevron + a "Back/Calendar/
+   Profiles/Shifts" text label that updates per sub-view. The destination
+   word tells the user where they'll land instead of relying on a bare
+   chevron. */
+.schedule-back-btn {
+  width: auto;
+  padding: 0 10px 0 6px;
+  gap: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+.schedule-back-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
 /* The pencil only makes sense from the heatmap; hide it elsewhere so the
    header doesn't suggest editing the picker/shifts/form itself. */
 body[data-schedule-subview="profile-picker"] .schedule-edit-btn,
@@ -1892,10 +1914,6 @@ body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.78rem;
 }
-.schedule-picker-back {
-  width: 100%;
-  margin-top: 16px;
-}
 
 /* Profile-shifts subview: header + list of shift rows + Add button. */
 .schedule-shifts-header { margin-bottom: 12px; }
@@ -1913,13 +1931,8 @@ body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none;
   gap: 6px;
   margin-bottom: 16px;
 }
-.schedule-shifts-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.schedule-shifts-actions .btn-profile-save,
-.schedule-shifts-actions .btn-close-modal { width: 100%; }
+.schedule-shifts-actions { display: flex; }
+.schedule-shifts-actions .btn-profile-save { flex: 1; }
 .schedule-shifts-date-group {
   display: flex;
   flex-direction: column;
