@@ -374,8 +374,12 @@
     </section>
 
     <section class="schedule-view schedule-view-profile-picker">
+      <div class="main-picker-search-row">
+        <input type="search" id="schedule-picker-search" placeholder="Search profiles..." autocomplete="off" autocorrect="off" spellcheck="false" oninput="filterScheduleProfilePicker()">
+      </div>
       <p class="schedule-picker-hint">Pick a profile to edit their work shifts.</p>
       <div class="profiles-list" id="schedule-profile-picker-list"></div>
+      <div class="main-picker-empty" id="schedule-picker-empty" hidden>No profiles match.</div>
     </section>
 
     <section class="schedule-view schedule-view-profile-shifts">
@@ -673,7 +677,7 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=56"></script>
+<script src="assets/app.js?v=57"></script>
 
 </body>
 </html>
