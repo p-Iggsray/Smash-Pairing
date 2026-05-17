@@ -22,12 +22,22 @@ function removeSplash() {
 
 // Register a network-first service worker so the home-screen PWA
 // picks up new deploys automatically instead of running cached files.
+// updateViaCache:'none' bypasses the browser's HTTP cache when fetching
+// the SW file itself (otherwise the browser is allowed to serve a cached
+// SW for up to 24h). We also kick an immediate reg.update() right after
+// registration and poll every 30s while the tab is visible so a deploy
+// landing mid-session reaches the user without waiting for the next
+// launch or backgrounding.
 if ('serviceWorker' in navigator) {
   const hadController = !!navigator.serviceWorker.controller;
-  navigator.serviceWorker.register('./service-worker.js').then(reg => {
+  navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' }).then(reg => {
+    reg.update().catch(() => {});
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') reg.update().catch(() => {});
     });
+    setInterval(() => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    }, 30000);
   }).catch(() => {});
 
   let reloaded = false;
