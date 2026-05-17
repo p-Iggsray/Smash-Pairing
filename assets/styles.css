@@ -1655,8 +1655,15 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   padding-top: env(safe-area-inset-top);
 }
 body[data-screen="schedule"] #schedule { transform: translateX(0); }
-body[data-screen="schedule"] header,
-body[data-screen="schedule"] #menu-btn { display: none; }
+body[data-screen="schedule"] header { display: none; }
+
+/* The hamburger is the only way back to home from the heatmap root (the
+   header back button now lives on sub-views only and swaps with the
+   pencil). Sub-views hide it again so the back-arrow is the unambiguous
+   exit. !important because render() sets menu-btn's display inline. */
+body[data-screen="schedule"][data-schedule-subview="profile-picker"] #menu-btn,
+body[data-screen="schedule"][data-schedule-subview="profile-shifts"] #menu-btn,
+body[data-screen="schedule"][data-schedule-subview="shift-form"]     #menu-btn { display: none !important; }
 
 .schedule-edit-btn {
   width: 40px;
@@ -1675,30 +1682,13 @@ body[data-screen="schedule"] #menu-btn { display: none; }
 .schedule-edit-btn:active { background: rgba(255, 255, 255, 0.04); }
 .schedule-edit-btn svg { width: 22px; height: 22px; }
 
-/* Labeled back button in the Scheduling header. Overrides the icon-only
-   .profiles-back-btn (40x40 square) to fit the chevron + a "Back/Calendar/
-   Profiles/Shifts" text label that updates per sub-view. The destination
-   word tells the user where they'll land instead of relying on a bare
-   chevron. */
-.schedule-back-btn {
-  width: auto;
-  padding: 0 10px 0 6px;
-  gap: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-}
-.schedule-back-label {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text);
-}
+/* Empty 40x40 cell on the header's left edge so the title stays visually
+   centered now that the left chevron is gone. */
+.schedule-header-spacer { width: 40px; height: 40px; }
 
-/* The pencil only makes sense from the heatmap; hide it elsewhere so the
-   header doesn't suggest editing the picker/shifts/form itself. */
+/* The pencil only makes sense from the heatmap, and the back-icon only
+   makes sense outside it - they swap into the same top-right slot. */
+body[data-schedule-subview="heatmap"] .schedule-back-icon-btn { display: none; }
 body[data-schedule-subview="profile-picker"] .schedule-edit-btn,
 body[data-schedule-subview="profile-shifts"] .schedule-edit-btn,
 body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none; }
