@@ -1592,6 +1592,45 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   letter-spacing: 0.08em;
   color: var(--dim);
 }
+/* Secondary helper text under a .form-label, used by the Attendance
+   slider to explain what the 0-10 value means. Smaller and dimmer than
+   the label, no uppercase. */
+.form-helper {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--dim);
+  opacity: 0.7;
+  margin-top: -2px;
+}
+
+/* Attendance slider row: range input takes the available width, the
+   numeric value sits to the right in a fixed-width monospace box so it
+   doesn't jitter as the digit count changes. */
+.profile-attendance-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.profile-attendance-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--set);
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+.profile-attendance-out {
+  min-width: 28px;
+  text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
 .profile-form input,
 .profile-form textarea {
   background: var(--bg);

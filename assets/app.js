@@ -216,6 +216,10 @@ function loadProfilesFromStorage() {
   let mutated = false;
   for (const p of profiles) {
     if (!Array.isArray(p.shifts)) { p.shifts = []; mutated = true; }
+    // Best-slot ranking weights profiles by their `attendance` value.
+    // Older profiles saved before this field existed get the middle
+    // default so they neither pull slots up nor sink them.
+    if (typeof p.attendance !== 'number') { p.attendance = 5; mutated = true; }
   }
   // Past-shift purge: drop any shift whose date is strictly before today.
   // Keeps storage small and stops yesterday's work-shifts from skewing
@@ -777,6 +781,7 @@ function openAddProfileForm() {
   updateMainTriggerLabel();
   document.getElementById('profile-notes').value = '';
   setProfileFormSkill('exp');
+  setProfileFormAttendance(5);
   document.getElementById('profile-delete-btn').hidden = true;
   setProfilesSubview('form');
   setTimeout(() => document.getElementById('profile-name').focus(), 280);
@@ -791,8 +796,24 @@ function openEditProfileForm(id) {
   updateMainTriggerLabel();
   document.getElementById('profile-notes').value = p.notes || '';
   setProfileFormSkill(p.skill);
+  setProfileFormAttendance(typeof p.attendance === 'number' ? p.attendance : 5);
   document.getElementById('profile-delete-btn').hidden = false;
   setProfilesSubview('form');
+}
+
+function setProfileFormAttendance(value) {
+  const input = document.getElementById('profile-attendance');
+  const out   = document.getElementById('profile-attendance-out');
+  if (input) input.value = String(value);
+  if (out)   out.textContent = String(value);
+}
+
+function getProfileFormAttendance() {
+  const input = document.getElementById('profile-attendance');
+  if (!input) return 5;
+  const n = parseInt(input.value, 10);
+  if (!Number.isFinite(n)) return 5;
+  return Math.min(10, Math.max(0, n));
 }
 
 function setProfileFormSkill(skill) {
@@ -808,10 +829,11 @@ function getProfileFormSkill() {
 }
 
 function saveProfileForm() {
-  const name  = document.getElementById('profile-name').value.trim();
-  const main  = document.getElementById('profile-main').value.trim();
-  const notes = document.getElementById('profile-notes').value.trim();
-  const skill = getProfileFormSkill();
+  const name       = document.getElementById('profile-name').value.trim();
+  const main       = document.getElementById('profile-main').value.trim();
+  const notes      = document.getElementById('profile-notes').value.trim();
+  const skill      = getProfileFormSkill();
+  const attendance = getProfileFormAttendance();
   if (!name) {
     showToast('Name required');
     document.getElementById('profile-name').focus();
@@ -819,9 +841,9 @@ function saveProfileForm() {
   }
   if (editingProfile) {
     const idx = profiles.findIndex(p => p.id === editingProfile.id);
-    if (idx >= 0) profiles[idx] = { ...profiles[idx], name, skill, main, notes };
+    if (idx >= 0) profiles[idx] = { ...profiles[idx], name, skill, main, notes, attendance };
   } else {
-    profiles.push({ id: Date.now(), name, skill, main, notes, createdAt: Date.now() });
+    profiles.push({ id: Date.now(), name, skill, main, notes, attendance, createdAt: Date.now() });
   }
   saveProfilesToStorage();
   renderProfilesList();
@@ -1072,17 +1094,49 @@ function freeBucket(free, total) {
 const HEATMAP_HOUR_START = 9;
 const HEATMAP_HOUR_END   = 23;
 
+// Best-slot ranking treats every candidate (date, hour) as the START of a
+// 4-hour block (tournaments run ~3-4 hours). A profile counts toward a
+// block's score only if they are free for EVERY hour in the block - no
+// mid-tournament leavers - and contributes their own `attendance` (0-10,
+// default 5) so frequent attendees pull a slot up the rankings.
+const TOURNAMENT_WINDOW_HOURS = 4;
+
+function isProfileFreeForWindow(profile, date, startHour, windowHours) {
+  for (let h = startHour; h < startHour + windowHours; h++) {
+    if (isProfileBusy(profile, date, h)) return false;
+  }
+  return true;
+}
+
+function windowScore(date, startHour, windowHours) {
+  let weight = 0;
+  let count = 0;
+  for (const p of profiles) {
+    if (!isProfileFreeForWindow(p, date, startHour, windowHours)) continue;
+    weight += (typeof p.attendance === 'number' ? p.attendance : 5);
+    count++;
+  }
+  return { weight, count };
+}
+
 function topBestSlots(limit = 3) {
+  const W = TOURNAMENT_WINDOW_HOURS;
+  // start + W must fit inside the heatmap band; last hour the block can
+  // occupy is HEATMAP_HOUR_END (inclusive), so latest start is
+  // HEATMAP_HOUR_END + 1 - W.
+  const latestStart = HEATMAP_HOUR_END + 1 - W;
   const cells = [];
   for (const date of datesInRange()) {
-    for (let h = HEATMAP_HOUR_START; h <= HEATMAP_HOUR_END; h++) {
-      cells.push({ date, hour: h, free: freeCount(date, h) });
+    for (let h = HEATMAP_HOUR_START; h <= latestStart; h++) {
+      const { weight, count } = windowScore(date, h, W);
+      cells.push({ date, startHour: h, endHour: h + W, weight, count });
     }
   }
   cells.sort((a, b) =>
-    b.free - a.free ||
+    b.weight - a.weight ||
+    b.count - a.count ||
     a.date.localeCompare(b.date) ||
-    a.hour - b.hour
+    a.startHour - b.startHour
   );
   return cells.slice(0, limit);
 }
@@ -1224,12 +1278,15 @@ function renderBestSlots() {
     const d = parseIsoToDate(s.date);
     const dow = d.toLocaleDateString(undefined, { weekday: 'short' });
     const md  = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const hourLabel = formatHour12(s.hour);
+    // formatHour12 maps 24 -> "12 PM" (wrong - hour 24 is midnight). Match
+    // the same end-hour special-case used elsewhere in this file.
+    const endLabel = s.endHour === 24 ? '12 AM' : formatHour12(s.endHour);
+    const range = `${formatHour12(s.startHour)} – ${endLabel}`;
     return `
-      <button type="button" class="schedule-best-slot-card" onclick="scrollToCell('${s.date}', ${s.hour})">
+      <button type="button" class="schedule-best-slot-card" onclick="scrollToCell('${s.date}', ${s.startHour})">
         <span class="schedule-best-slot-rank">#${i + 1} best</span>
-        <span class="schedule-best-slot-when">${esc(dow)} ${esc(md)} · ${esc(hourLabel)}</span>
-        <span class="schedule-best-slot-free">${s.free}/${total} free</span>
+        <span class="schedule-best-slot-when">${esc(dow)} ${esc(md)} · ${esc(range)}</span>
+        <span class="schedule-best-slot-free">${s.count}/${total} can stay</span>
       </button>
     `;
   }).join('');

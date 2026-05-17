@@ -18,7 +18,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=68">
+  <link rel="stylesheet" href="assets/styles.css?v=69">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -310,6 +310,15 @@
               <polyline points="9 6 15 12 9 18"/>
             </svg>
           </button>
+        </div>
+
+        <div class="form-field">
+          <span class="form-label">Attendance</span>
+          <span class="form-helper">How likely they show up (0 never, 10 always). Weights best-time picks.</span>
+          <div class="profile-attendance-row">
+            <input type="range" id="profile-attendance" min="0" max="10" step="1" value="5" oninput="document.getElementById('profile-attendance-out').textContent = this.value">
+            <output id="profile-attendance-out" class="profile-attendance-out" for="profile-attendance">5</output>
+          </div>
         </div>
 
         <label class="form-field">
@@ -714,7 +723,7 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=60"></script>
+<script src="assets/app.js?v=61"></script>
 
 </body>
 </html>
