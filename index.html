@@ -18,7 +18,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=67">
+  <link rel="stylesheet" href="assets/styles.css?v=68">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -616,6 +616,37 @@
   </div>
 </div>
 
+<!-- Heatmap cell-detail modal: shown when a cell in the Scheduling
+     heatmap is tapped. Lists who can vs. who can't make that hour. -->
+
+<div class="modal-backdrop" id="schedule-cell-modal" onclick="handleScheduleCellBackdropClick(event)">
+  <div class="modal-sheet is-info">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title" id="schedule-cell-title">Availability</span>
+    </div>
+    <div class="modal-body schedule-cell-modal-body">
+      <div class="schedule-cell-section schedule-cell-available">
+        <h4 class="schedule-cell-section-title">
+          <span>Available</span>
+          <span class="schedule-cell-section-count" id="schedule-cell-available-count">0/0</span>
+        </h4>
+        <div class="schedule-cell-list" id="schedule-cell-available-list"></div>
+      </div>
+      <div class="schedule-cell-section schedule-cell-busy">
+        <h4 class="schedule-cell-section-title">
+          <span>Busy</span>
+          <span class="schedule-cell-section-count" id="schedule-cell-busy-count">0/0</span>
+        </h4>
+        <div class="schedule-cell-list" id="schedule-cell-busy-list"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-close-modal" onclick="hideScheduleCellModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Confirm sheet (single shared element, populated by showConfirm()).
      Z-index 150 (set in CSS) keeps it above other modals but below the toast. -->
 <div class="modal-backdrop" id="confirm-modal" onclick="handleConfirmBackdropClick(event)">
@@ -683,7 +714,7 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=59"></script>
+<script src="assets/app.js?v=60"></script>
 
 </body>
 </html>
