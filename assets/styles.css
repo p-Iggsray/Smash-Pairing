@@ -1876,6 +1876,38 @@ body[data-screen="schedule"] #menu-btn { display: none !important; }
   cursor: default;
 }
 
+/* Share row sits between the best-slot cards and the heatmap. Pair of
+   pill buttons - left primary "Share image", right secondary "Copy text". */
+.schedule-share-row {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+.schedule-share-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.schedule-share-btn:active { transform: translateY(1px); filter: brightness(1.15); }
+.schedule-share-btn svg { flex-shrink: 0; }
+.schedule-share-btn-secondary {
+  background: transparent;
+  color: var(--dim);
+}
+
 /* Heatmap: CSS grid with sticky hour labels (left) and sticky date headers
    (top). overflow-x: auto on the wrapper lets date columns scroll. */
 .schedule-heatmap-scroll {

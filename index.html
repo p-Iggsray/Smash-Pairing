@@ -18,7 +18,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=69">
+  <link rel="stylesheet" href="assets/styles.css?v=70">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -376,6 +376,23 @@
         </button>
       </div>
       <div class="schedule-best-slots" id="schedule-best-slots"></div>
+      <div class="schedule-share-row">
+        <button type="button" class="schedule-share-btn" onclick="exportScheduleAsImage()">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+            <polyline points="16 6 12 2 8 6"/>
+            <line x1="12" y1="2" x2="12" y2="15"/>
+          </svg>
+          Share image
+        </button>
+        <button type="button" class="schedule-share-btn schedule-share-btn-secondary" onclick="copyScheduleAsText()">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          Copy text
+        </button>
+      </div>
       <div class="schedule-heatmap-scroll" id="schedule-heatmap-scroll">
         <div class="schedule-heatmap" id="schedule-heatmap"></div>
       </div>
@@ -723,7 +740,7 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=61"></script>
+<script src="assets/app.js?v=62"></script>
 
 </body>
 </html>

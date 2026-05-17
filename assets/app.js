@@ -1292,6 +1292,350 @@ function renderBestSlots() {
   }).join('');
 }
 
+// ---------------------------------------------------------------------------
+// Schedule sharing: render the top-5 best slots + heatmap + cast list to a
+// single PNG and hand it to the OS share sheet (iOS: Save to Photos /
+// Messages / AirDrop). Sibling "Copy text" path pastes a bullet list of the
+// same five slots so users can drop the gist into a chat without an image.
+// ---------------------------------------------------------------------------
+
+// Solid colors baked from the in-app translucent bucket palette (see
+// .schedule-heatmap-cell[data-bucket=...] in styles.css) against the
+// #0c0d10 page background. Keeps the exported grid visually consistent
+// with what users see in the app.
+const HEATMAP_CANVAS_PALETTE = [
+  { fill: '#351719', text: '#d05a5a', bold: false }, // 0 free
+  { fill: '#1e1114', text: '#8a8a8a', bold: false }, // some, < 25%
+  { fill: '#242016', text: '#ffc94d', bold: false }, // 25-50%
+  { fill: '#112c24', text: '#2ee8a0', bold: false }, // 50-75%
+  { fill: '#164f3b', text: '#2ee8a0', bold: true  }, // 75-100%
+];
+
+function canvasRoundRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+  ctx.lineTo(x + rr, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.closePath();
+}
+
+function buildShareSlotsText(slots) {
+  // Plain-text bullet list used for both "Copy text" and as the body of
+  // the share-sheet payload alongside the image.
+  const total = profiles.length;
+  const lines = [];
+  slots.forEach((s, i) => {
+    const d = parseIsoToDate(s.date);
+    const dow = d.toLocaleDateString(undefined, { weekday: 'short' });
+    const md  = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const endLabel = s.endHour === 24 ? '12 AM' : formatHour12(s.endHour);
+    lines.push(`#${i + 1} ${dow} ${md} · ${formatHour12(s.startHour)} – ${endLabel} (${s.count}/${total} can stay)`);
+  });
+  return lines.join('\n');
+}
+
+function buildShareFullText() {
+  const dates = datesInRange();
+  const slots = topBestSlots(5);
+  const startD = parseIsoToDate(dates[0]);
+  const endD   = parseIsoToDate(dates[dates.length - 1]);
+  const startStr = startD.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const endStr   = endD.toLocaleDateString(undefined,   { month: 'short', day: 'numeric', year: 'numeric' });
+  return [
+    `Tournament times (${startStr} – ${endStr}):`,
+    buildShareSlotsText(slots),
+    '',
+    `Top time fits ${slots[0].count}/${profiles.length} of the group for a full 4-hour block.`,
+  ].join('\n');
+}
+
+async function copyScheduleAsText() {
+  if (!profiles.length)        { showToast('Add profiles first');  return; }
+  if (!datesInRange().length)  { showToast('Pick a date range');   return; }
+  const text = buildShareFullText();
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Copied to clipboard');
+  } catch (e) {
+    showToast('Copy failed', { variant: 'error' });
+  }
+}
+
+async function exportScheduleAsImage() {
+  if (!profiles.length)       { showToast('Add profiles first'); return; }
+  const dates = datesInRange();
+  if (!dates.length)          { showToast('Pick a date range');  return; }
+
+  showToast('Generating image…');
+
+  const slots = topBestSlots(5);
+  const total = profiles.length;
+
+  // Layout constants - all in CSS pixels at 1x. Final canvas is 1080 wide.
+  const W = 1080;
+  const PAD = 60;
+  const inner = W - PAD * 2;
+
+  const hourCount = HEATMAP_HOUR_END - HEATMAP_HOUR_START + 1;
+  const hourLabelW = 80;
+  const gridAvail = inner - hourLabelW;
+  // Cap cell size so a 7-day range doesn't blow up into a wall; floor so
+  // a 30-day range still produces readable cells (~28px).
+  const cellW = Math.max(20, Math.min(70, Math.floor(gridAvail / dates.length)));
+  const cellH = Math.min(cellW, 48);
+  const actualGridW = cellW * dates.length;
+  // Center the grid horizontally inside the inner content area
+  const gridLeftOffset = Math.floor((inner - (hourLabelW + actualGridW)) / 2);
+
+  // Render onto a generously-tall offscreen canvas, then trim to the
+  // actual content height when exporting. Avoids having to pre-compute
+  // the cast section's wrap height.
+  const TEMP_H = 4096;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = TEMP_H;
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#0c0d10';
+  ctx.fillRect(0, 0, W, TEMP_H);
+
+  let y = PAD;
+
+  // ---- Header ----
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 64px "Barlow Condensed", "Helvetica Neue", system-ui, sans-serif';
+  ctx.fillText('SMASH PAIRING', PAD, y + 56);
+
+  ctx.fillStyle = '#bbb';
+  ctx.font = '500 22px "IBM Plex Mono", "Menlo", monospace';
+  ctx.fillText('Tournament availability snapshot', PAD, y + 92);
+
+  const startD = parseIsoToDate(dates[0]);
+  const endD   = parseIsoToDate(dates[dates.length - 1]);
+  const rangeLabel = `${startD.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${endD.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  ctx.fillStyle = '#888';
+  ctx.font = '500 19px "IBM Plex Mono", monospace';
+  ctx.fillText(`${rangeLabel} · ${total} profile${total === 1 ? '' : 's'} · 4-hour blocks`, PAD, y + 124);
+
+  ctx.fillStyle = '#2a2d36';
+  ctx.fillRect(PAD, y + 150, inner, 2);
+  y += 180;
+
+  // ---- Top 5 best slots ----
+  ctx.fillStyle = '#ffc94d';
+  ctx.font = 'bold 30px "Barlow Condensed", system-ui, sans-serif';
+  ctx.fillText('TOP 5 TIMES', PAD, y + 28);
+  y += 56;
+
+  const slotCardH = 78;
+  const slotGap = 10;
+  slots.forEach((s, i) => {
+    const isTop = i === 0;
+    ctx.fillStyle = isTop ? '#1c2a1c' : '#15171e';
+    canvasRoundRect(ctx, PAD, y, inner, slotCardH, 14);
+    ctx.fill();
+
+    if (isTop) {
+      ctx.fillStyle = '#2ee8a0';
+      canvasRoundRect(ctx, PAD, y, 6, slotCardH, 3);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = isTop ? '#2ee8a0' : '#666';
+    ctx.font = 'bold 32px "Barlow Condensed", system-ui, sans-serif';
+    ctx.fillText(`#${i + 1}`, PAD + 24, y + 48);
+
+    const d = parseIsoToDate(s.date);
+    const dow = d.toLocaleDateString(undefined, { weekday: 'short' });
+    const md  = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const endLabel = s.endHour === 24 ? '12 AM' : formatHour12(s.endHour);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 28px "Barlow Condensed", system-ui, sans-serif';
+    ctx.fillText(`${dow} ${md} · ${formatHour12(s.startHour)} – ${endLabel}`, PAD + 92, y + 36);
+
+    ctx.fillStyle = '#aaa';
+    ctx.font = '500 16px "IBM Plex Mono", monospace';
+    ctx.fillText(`${s.count}/${total} can stay`, PAD + 92, y + 62);
+
+    // Right-aligned "weight" tag
+    ctx.fillStyle = '#666';
+    ctx.font = '500 14px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`score ${s.weight}`, PAD + inner - 20, y + 48);
+    ctx.textAlign = 'left';
+
+    y += slotCardH + slotGap;
+  });
+  y += 24;
+
+  // ---- Availability grid ----
+  ctx.fillStyle = '#ffc94d';
+  ctx.font = 'bold 30px "Barlow Condensed", system-ui, sans-serif';
+  ctx.fillText('AVAILABILITY GRID', PAD, y + 28);
+  y += 56;
+
+  const gridX = PAD + gridLeftOffset + hourLabelW;
+  const labelX = PAD + gridLeftOffset;
+
+  // Date column headers
+  ctx.textAlign = 'center';
+  dates.forEach((date, di) => {
+    const d = parseIsoToDate(date);
+    const dow = d.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase();
+    const cx = gridX + di * cellW + cellW / 2;
+    ctx.fillStyle = '#888';
+    ctx.font = 'bold 12px "IBM Plex Mono", monospace';
+    ctx.fillText(dow, cx, y + 16);
+    ctx.fillStyle = '#e8e8e8';
+    ctx.font = 'bold 18px "Barlow Condensed", system-ui, sans-serif';
+    ctx.fillText(String(d.getDate()), cx, y + 38);
+  });
+  y += 52;
+
+  // Hour rows
+  for (let hi = 0; hi < hourCount; hi++) {
+    const h = HEATMAP_HOUR_START + hi;
+    const rowY = y + hi * cellH;
+
+    ctx.fillStyle = '#777';
+    ctx.font = '500 13px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(formatHour12(h), labelX + hourLabelW - 14, rowY + cellH / 2);
+    ctx.textBaseline = 'alphabetic';
+
+    for (let di = 0; di < dates.length; di++) {
+      const date = dates[di];
+      const free = freeCount(date, h);
+      const bucket = freeBucket(free, total);
+      const palette = HEATMAP_CANVAS_PALETTE[bucket];
+      const cellX = gridX + di * cellW;
+
+      ctx.fillStyle = palette.fill;
+      ctx.fillRect(cellX + 1, rowY + 1, cellW - 2, cellH - 2);
+
+      if (cellW >= 26 && cellH >= 22) {
+        ctx.fillStyle = palette.text;
+        const fontSize = Math.max(10, Math.min(14, cellH - 10));
+        ctx.font = `${palette.bold ? 'bold' : '600'} ${fontSize}px "IBM Plex Mono", monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(free), cellX + cellW / 2, rowY + cellH / 2 + 1);
+        ctx.textBaseline = 'alphabetic';
+      }
+    }
+  }
+  y += hourCount * cellH + 36;
+  ctx.textAlign = 'left';
+
+  // ---- Cast: every profile as a chip tinted by attendance ----
+  ctx.fillStyle = '#ffc94d';
+  ctx.font = 'bold 30px "Barlow Condensed", system-ui, sans-serif';
+  ctx.fillText('CAST', PAD, y + 28);
+  y += 50;
+
+  const chipH = 38;
+  const chipGap = 8;
+  const chipPadX = 14;
+  let chipX = PAD;
+  let chipY = y;
+
+  for (const p of profiles) {
+    const att = typeof p.attendance === 'number' ? p.attendance : 5;
+    const nameText = p.name;
+    const attText = ` ${att}`;
+    ctx.font = '600 18px "IBM Plex Mono", monospace';
+    const nameW = ctx.measureText(nameText).width;
+    ctx.font = 'bold 18px "IBM Plex Mono", monospace';
+    const attW = ctx.measureText(attText).width;
+    const chipW = chipPadX * 2 + nameW + attW;
+
+    if (chipX + chipW > PAD + inner && chipX > PAD) {
+      chipY += chipH + chipGap;
+      chipX = PAD;
+    }
+
+    // Chip background tinted by attendance: low = dim, high = green-tinted
+    const t = att / 10;
+    const r = Math.round(22 + (60 - 22) * (1 - t));
+    const g = Math.round(30 + (110 - 30) * t);
+    const b = Math.round(40 + (80 - 40) * t);
+    ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+    canvasRoundRect(ctx, chipX, chipY, chipW, chipH, 9);
+    ctx.fill();
+
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ececec';
+    ctx.font = '600 18px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(nameText, chipX + chipPadX, chipY + chipH / 2);
+
+    ctx.font = 'bold 18px "IBM Plex Mono", monospace';
+    ctx.fillStyle = att >= 7 ? '#7dd87a' : (att >= 4 ? '#ffd166' : '#d96a6a');
+    ctx.fillText(attText, chipX + chipPadX + nameW, chipY + chipH / 2);
+    ctx.textBaseline = 'alphabetic';
+
+    chipX += chipW + chipGap;
+  }
+  y = chipY + chipH + 32;
+
+  // ---- Footer ----
+  ctx.fillStyle = '#2a2d36';
+  ctx.fillRect(PAD, y, inner, 2);
+  y += 28;
+
+  ctx.fillStyle = '#666';
+  ctx.font = '500 13px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'left';
+  const stamp = new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  ctx.fillText(`Generated ${stamp}`, PAD, y + 14);
+  ctx.textAlign = 'right';
+  ctx.fillText('attendance-weighted · strict 4h windows', PAD + inner, y + 14);
+  y += 32 + PAD;
+
+  // ---- Trim to actual height and export ----
+  const finalH = Math.min(y, TEMP_H);
+  const out = document.createElement('canvas');
+  out.width = W;
+  out.height = finalH;
+  out.getContext('2d').drawImage(canvas, 0, 0);
+
+  out.toBlob(async (blob) => {
+    if (!blob) { showToast('Image generation failed', { variant: 'error' }); return; }
+    const file = new File([blob], 'smash-pairing.png', { type: 'image/png' });
+    const shareText = buildShareFullText();
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Tournament availability', text: shareText });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;
+        // fall through to download
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'smash-pairing.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Image saved');
+  }, 'image/png');
+}
+
 function renderHeatmapGrid() {
   const grid = document.getElementById('schedule-heatmap');
   const empty = document.getElementById('schedule-heatmap-empty');
