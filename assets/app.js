@@ -1296,6 +1296,8 @@ function scrollToCell(date, hour) {
 
 function openScheduleProfilePicker() {
   setScheduleSubview('profile-picker');
+  const search = document.getElementById('schedule-picker-search');
+  if (search) search.value = '';
   renderScheduleProfilePicker();
 }
 
@@ -1317,7 +1319,7 @@ function renderScheduleProfilePicker() {
       ? 'No shifts'
       : `${shiftCount} shift${shiftCount === 1 ? '' : 's'}`;
     return `
-      <button class="profile-card" onclick="pickScheduleProfile(${p.id})">
+      <button class="profile-card" data-name="${esc(p.name.toLowerCase())}" onclick="pickScheduleProfile(${p.id})">
         ${avatar}
         <span class="profile-info">
           <span class="profile-name">${esc(p.name)}</span>
@@ -1326,6 +1328,24 @@ function renderScheduleProfilePicker() {
       </button>
     `;
   }).join('');
+  filterScheduleProfilePicker();
+}
+
+// Mirrors filterMainPicker(): substring match on the lowercased name,
+// hide non-matches via the `hidden` attribute, toggle an empty-state
+// element when nothing matches.
+function filterScheduleProfilePicker() {
+  const input = document.getElementById('schedule-picker-search');
+  const q = input ? input.value.trim().toLowerCase() : '';
+  const cards = document.querySelectorAll('#schedule-profile-picker-list .profile-card');
+  let visible = 0;
+  cards.forEach(c => {
+    const name = c.dataset.name || '';
+    c.hidden = q ? !name.includes(q) : false;
+    if (!c.hidden) visible++;
+  });
+  const empty = document.getElementById('schedule-picker-empty');
+  if (empty) empty.hidden = !(q && visible === 0);
 }
 
 function pickScheduleProfile(id) {
