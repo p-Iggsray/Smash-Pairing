@@ -18,7 +18,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=70">
+  <link rel="stylesheet" href="assets/styles.css?v=71">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -103,6 +103,56 @@
   </div>
 </div>
 
+<!-- Login gate. Shown only when Supabase is configured AND the user is not
+     logged in. When hidden, the app behaves exactly as before. -->
+<div id="login-gate" class="login-gate" hidden>
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="login-brand-mark" aria-hidden="true">SP</div>
+      <div class="login-brand-text">
+        <div class="login-brand-title">Smash Pairing</div>
+        <div class="login-brand-tagline">Sign in to sync across devices</div>
+      </div>
+    </div>
+
+    <div class="login-tabs" role="tablist">
+      <button type="button" class="login-tab is-active" id="login-tab-signin"
+              role="tab" aria-selected="true" onclick="setLoginMode('signin')">Sign In</button>
+      <button type="button" class="login-tab" id="login-tab-signup"
+              role="tab" aria-selected="false" onclick="setLoginMode('signup')">Create Account</button>
+    </div>
+
+    <form class="login-form" id="login-form" onsubmit="submitLogin(event)" autocomplete="on">
+      <label class="login-field">
+        <span class="login-field-label">Username</span>
+        <input type="text" id="login-username" name="username"
+               autocomplete="username" autocapitalize="none" autocorrect="off"
+               inputmode="text" maxlength="32" required
+               pattern="[A-Za-z0-9._-]{2,32}"
+               placeholder="yourname">
+      </label>
+
+      <label class="login-field">
+        <span class="login-field-label">Password</span>
+        <input type="password" id="login-password" name="password"
+               autocomplete="current-password" minlength="6" required
+               placeholder="At least 6 characters">
+      </label>
+
+      <div class="login-error" id="login-error" role="alert" aria-live="polite"></div>
+
+      <button type="submit" class="login-submit" id="login-submit">
+        <span class="login-submit-label">Sign In</span>
+        <span class="login-submit-spinner" aria-hidden="true"></span>
+      </button>
+    </form>
+
+    <p class="login-hint">
+      Username is letters, numbers, dot, underscore, or hyphen (2-32 chars).
+      No email needed - your login works on any device.
+    </p>
+  </div>
+</div>
 
 <button id="menu-btn" class="menu-btn" aria-label="Open menu" onclick="toggleMenu()">
   <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
@@ -589,6 +639,10 @@
             <span class="menu-option-title">Reset all data</span>
             <span class="menu-option-desc">Wipe roster, presets, profiles, schedule</span>
           </button>
+          <button class="menu-option destructive" id="menu-signout" role="menuitem" onclick="confirmSignOut()" hidden>
+            <span class="menu-option-title">Sign out</span>
+            <span class="menu-option-desc" id="menu-signout-desc">Sign out and clear this device</span>
+          </button>
         </div>
       </section>
 
@@ -752,7 +806,10 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=63"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/supabase-config.js?v=1"></script>
+<script src="assets/supabase-client.js?v=1"></script>
+<script src="assets/app.js?v=65"></script>
 
 </body>
 </html>

@@ -156,6 +156,7 @@ let swapSelection = null;
 async function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.SmashSync && window.SmashSync.pushKey(STORAGE_KEY, state);
   } catch(e) {
     showToast('Save failed', { variant: 'error' });
   }
@@ -183,6 +184,7 @@ async function loadState() {
 function savePresets() {
   try {
     localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+    window.SmashSync && window.SmashSync.pushKey(PRESETS_KEY, presets);
   } catch(e) {
     showToast('Save failed', { variant: 'error' });
   }
@@ -198,6 +200,7 @@ function loadPresetsFromStorage() {
 function saveProfilesToStorage() {
   try {
     localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    window.SmashSync && window.SmashSync.pushKey(PROFILES_KEY, profiles);
   } catch(e) {
     showToast('Save failed', { variant: 'error' });
   }
@@ -1051,6 +1054,7 @@ function loadScheduleRange() {
 function saveScheduleRange() {
   try {
     localStorage.setItem(SCHEDULE_RANGE_KEY, JSON.stringify(scheduleRange));
+    window.SmashSync && window.SmashSync.pushKey(SCHEDULE_RANGE_KEY, scheduleRange);
   } catch(e) { /* storage full / private mode - non-fatal, range falls back to defaults next load */ }
 }
 
@@ -2236,6 +2240,11 @@ async function handleImportFile(event) {
     showToast('Import failed', { variant: 'error' });
     return;
   }
+  // Push the imported data up before reloading so the reload's syncOnLoad
+  // doesn't race a still-pending debounced push and lose it.
+  if (window.SmashSync && window.SmashSync.isEnabled() && window.SmashSync.getCurrentUser()) {
+    try { await window.SmashSync.pushAllNow(); } catch (_) {}
+  }
   location.reload();
 }
 
@@ -2251,6 +2260,11 @@ async function confirmResetAll() {
   try {
     for (const key of ALL_STORAGE_KEYS) localStorage.removeItem(key);
   } catch (e) { /* if storage is unavailable, reload will still re-init defaults */ }
+  // Mirror the wipe to the user's Supabase account so cross-device stays
+  // consistent. No-op when logged out or sync disabled.
+  if (window.SmashSync && window.SmashSync.isEnabled() && window.SmashSync.getCurrentUser()) {
+    try { await window.SmashSync.clearRemote(); } catch (_) {}
+  }
   location.reload();
 }
 
@@ -2911,12 +2925,152 @@ if ('share' in navigator) {
   });
 })();
 
+// ---- Login UI ----
+//
+// All of the auth UI lives in the login-gate overlay defined in index.html.
+// This block is a no-op when SmashSync is disabled (placeholder config) so
+// forks without Supabase keep working exactly as before.
+
+let _loginMode = 'signin';  // 'signin' | 'signup'
+
+function setLoginMode(mode) {
+  _loginMode = mode === 'signup' ? 'signup' : 'signin';
+  const tabIn  = document.getElementById('login-tab-signin');
+  const tabUp  = document.getElementById('login-tab-signup');
+  const submit = document.getElementById('login-submit');
+  const label  = submit && submit.querySelector('.login-submit-label');
+  const pw     = document.getElementById('login-password');
+  const err    = document.getElementById('login-error');
+  if (tabIn) {
+    tabIn.classList.toggle('is-active', _loginMode === 'signin');
+    tabIn.setAttribute('aria-selected', _loginMode === 'signin' ? 'true' : 'false');
+  }
+  if (tabUp) {
+    tabUp.classList.toggle('is-active', _loginMode === 'signup');
+    tabUp.setAttribute('aria-selected', _loginMode === 'signup' ? 'true' : 'false');
+  }
+  if (label) label.textContent = _loginMode === 'signup' ? 'Create Account' : 'Sign In';
+  if (pw) pw.autocomplete = _loginMode === 'signup' ? 'new-password' : 'current-password';
+  if (err) err.textContent = '';
+}
+
+function showLoginGate() {
+  const gate = document.getElementById('login-gate');
+  if (!gate) return;
+  gate.hidden = false;
+  document.documentElement.classList.add('login-locked');
+  const u = document.getElementById('login-username');
+  // Defer focus until the splash has yielded, otherwise iOS Safari sometimes
+  // refuses to bring up the keyboard.
+  setTimeout(() => { if (u && !u.value) u.focus(); }, 50);
+}
+
+function hideLoginGate() {
+  const gate = document.getElementById('login-gate');
+  if (!gate) return;
+  gate.hidden = true;
+  document.documentElement.classList.remove('login-locked');
+  const pw = document.getElementById('login-password');
+  if (pw) pw.value = '';
+}
+
+function friendlyAuthError(err) {
+  const msg = (err && err.message) || String(err || '');
+  if (/invalid login credentials/i.test(msg)) return 'Wrong username or password.';
+  if (/user already registered/i.test(msg)) return 'That username is already taken.';
+  if (/email rate limit/i.test(msg)) return 'Too many attempts. Wait a minute and try again.';
+  if (/password should be at least/i.test(msg)) return 'Password must be at least 6 characters.';
+  if (/signups not allowed/i.test(msg)) return 'New sign-ups are disabled on this server.';
+  return msg || 'Something went wrong. Try again.';
+}
+
+async function submitLogin(event) {
+  event.preventDefault();
+  const u = document.getElementById('login-username');
+  const p = document.getElementById('login-password');
+  const err = document.getElementById('login-error');
+  const submit = document.getElementById('login-submit');
+  if (!u || !p || !submit) return;
+
+  const username = u.value.trim();
+  const password = p.value;
+  if (err) err.textContent = '';
+  submit.disabled = true;
+  submit.classList.add('is-loading');
+
+  try {
+    if (_loginMode === 'signup') {
+      await window.SmashSync.signUp(username, password);
+    } else {
+      await window.SmashSync.signIn(username, password);
+    }
+    // Full reload so the boot path's syncOnLoad runs against a fresh in-
+    // memory state and we render once with the synced data.
+    location.reload();
+  } catch (e) {
+    if (err) err.textContent = friendlyAuthError(e);
+    submit.disabled = false;
+    submit.classList.remove('is-loading');
+    p.focus();
+    p.select && p.select();
+  }
+}
+
+async function confirmSignOut() {
+  hideMenu();
+  const ok = await showConfirm({
+    title: 'Sign out?',
+    body: 'This device will be cleared. Your data stays safe in your account and comes back the next time you sign in.',
+    danger: true,
+    confirmLabel: 'Sign out'
+  });
+  if (!ok) return;
+  try { await window.SmashSync.signOut(); } catch (_) {}
+  // signOut already wiped local app keys; reload to reset in-memory state.
+  location.reload();
+}
+
+function refreshAuthUi(user) {
+  const signOutBtn = document.getElementById('menu-signout');
+  const signOutDesc = document.getElementById('menu-signout-desc');
+  if (signOutBtn) signOutBtn.hidden = !user;
+  if (signOutDesc && user && user.username) {
+    signOutDesc.textContent = `Signed in as @${user.username}`;
+  }
+}
+
 (async () => {
   // State load happens in parallel with the splash animation; both
   // must finish before we tear the splash down. In practice the state
   // load completes in <50ms and the CSS animation is the long pole,
   // but the Promise.all keeps us safe if state ever lags.
   const stateReady = (async () => {
+    // If a session was restored from a previous visit, pull remote changes
+    // before the first render so the user sees the latest data on boot
+    // (and we avoid a visible state-then-snap reload). If sync is disabled
+    // or the user is logged out, this resolves instantly with false.
+    if (window.SmashSync && window.SmashSync.isEnabled()) {
+      try {
+        await window.SmashSync.ready;
+        const user = window.SmashSync.getCurrentUser();
+        if (!user) {
+          // Not signed in - reveal the login gate before splash fades so
+          // there's no flash of the (empty) app behind it.
+          setLoginMode('signin');
+          showLoginGate();
+        } else {
+          await window.SmashSync.syncOnLoad();
+        }
+        refreshAuthUi(user);
+        // Keep the gate + menu in sync with later auth changes (token expiry,
+        // sign-out from another tab, etc.).
+        window.SmashSync.onAuthChange(u => {
+          refreshAuthUi(u);
+          if (!u) showLoginGate();
+          else hideLoginGate();
+        });
+      } catch (_) {}
+    }
     await loadState();
     loadPresetsFromStorage();
     loadProfilesFromStorage();
