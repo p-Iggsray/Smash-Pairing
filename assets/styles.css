@@ -1658,50 +1658,34 @@ body[data-screen="schedule"] #schedule { transform: translateX(0); }
 body[data-screen="schedule"] header,
 body[data-screen="schedule"] #menu-btn { display: none; }
 
-.schedule-edit-btn {
-  width: 40px;
-  height: 40px;
+/* Empty 40x40 cell on the header's right edge so the title stays
+   visually centered opposite the back chevron on the left. */
+.schedule-header-spacer { width: 40px; height: 40px; }
+
+/* Edit-availability button lives inside the heatmap content (top of the
+   date-range row) since the header now carries only the back chevron.
+   Icon-only, sized to match the inputs' visual height. */
+.schedule-edit-availability-btn {
+  align-self: flex-end;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   color: var(--text);
   cursor: pointer;
-  border-radius: 8px;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s, border-color 0.15s;
 }
-.schedule-edit-btn:active { background: rgba(255, 255, 255, 0.04); }
-.schedule-edit-btn svg { width: 22px; height: 22px; }
-
-/* Labeled back button in the Scheduling header. Overrides the icon-only
-   .profiles-back-btn (40x40 square) to fit the chevron + a "Back/Calendar/
-   Profiles/Shifts" text label that updates per sub-view. The destination
-   word tells the user where they'll land instead of relying on a bare
-   chevron. */
-.schedule-back-btn {
-  width: auto;
-  padding: 0 10px 0 6px;
-  gap: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
+.schedule-edit-availability-btn:active {
+  background: var(--bg);
+  border-color: rgba(255, 201, 77, 0.4);
 }
-.schedule-back-label {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text);
-}
-
-/* The pencil only makes sense from the heatmap; hide it elsewhere so the
-   header doesn't suggest editing the picker/shifts/form itself. */
-body[data-schedule-subview="profile-picker"] .schedule-edit-btn,
-body[data-schedule-subview="profile-shifts"] .schedule-edit-btn,
-body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none; }
+.schedule-edit-availability-btn svg { width: 20px; height: 20px; }
 
 .schedule-viewport {
   flex: 1;
