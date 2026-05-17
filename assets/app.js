@@ -58,6 +58,7 @@ const state = {
 const STORAGE_KEY = 'tp_v2';
 const PRESETS_KEY = 'tp_presets';
 const PROFILES_KEY = 'tp_profiles';
+const SCHEDULE_RANGE_KEY = 'tp_schedule_range';
 
 // Super Smash Bros. Ultimate fighter roster (87 slots) in canonical
 // character-select-screen order. Roster has been frozen since Sora
@@ -136,6 +137,17 @@ let currentScreen = 'home';
 let editingProfile = null;
 let profilesSubview = 'list';
 
+// Scheduling state. None of this is persisted across reloads except for
+// scheduleRange (its own localStorage key) - reopening Scheduling always
+// lands on the heatmap subview with no profile picked.
+let scheduleSubview = 'heatmap';
+let currentScheduleProfileId = null;
+let editingShift = null;                 // existing shift being edited, or null when adding
+let pendingShiftReturnDate = null;       // date the user came from (pre-selects that pill)
+let shiftFormSelectedDates = new Set();  // selected date pills, in-memory only
+let scheduleRange = null;                // { startDate, endDate } loaded from storage
+let _shiftIdCounter = 0;
+
 // In-progress swap selection on the Results screen. Null when no player is selected.
 // Shape: { type: 'exp'|'inexp', pairIdx: number, playerId: number }
 let swapSelection = null;
@@ -197,6 +209,23 @@ function loadProfilesFromStorage() {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) profiles = parsed;
   } catch(e) { profiles = []; }
+  // Backward-compat: profiles saved before the scheduling feature don't
+  // have a shifts array. Default to empty so heatmap math treats them as
+  // "always free."
+  let mutated = false;
+  for (const p of profiles) {
+    if (!Array.isArray(p.shifts)) { p.shifts = []; mutated = true; }
+  }
+  // Past-shift purge: drop any shift whose date is strictly before today.
+  // Keeps storage small and stops yesterday's work-shifts from skewing
+  // tomorrow's heatmap if the user forgets to clean up.
+  const today = todayIso();
+  for (const p of profiles) {
+    const before = p.shifts.length;
+    p.shifts = p.shifts.filter(s => s && typeof s.date === 'string' && s.date >= today);
+    if (p.shifts.length !== before) mutated = true;
+  }
+  if (mutated) saveProfilesToStorage();
 }
 
 function getProfileById(id) { return profiles.find(p => p.id === id); }
@@ -530,9 +559,10 @@ function resetTeams() {
 function render() {
   document.getElementById('home').style.display     = state.hasPaired ? 'none' : 'block';
   document.getElementById('menu-btn').style.display = state.hasPaired ? 'none' : 'flex';
-  document.body.dataset.screen = currentScreen === 'profiles'
-    ? 'profiles'
-    : (state.hasPaired ? 'results' : 'home');
+  document.body.dataset.screen =
+    currentScreen === 'profiles' ? 'profiles' :
+    currentScreen === 'schedule' ? 'schedule' :
+    (state.hasPaired ? 'results' : 'home');
   renderMenu();
   renderPanel('exp');
   renderPanel('inexp');
@@ -934,6 +964,587 @@ function updateMainTriggerLabel() {
   const label = value ? getFighterName(value) : '';
   display.textContent = label || 'No main';
   display.classList.toggle('is-placeholder', !label);
+}
+
+// ---- Scheduling screen ----
+//
+// Each profile owns a list of busy-time "shifts" on specific upcoming dates.
+// The heatmap counts profiles NOT busy in each (date, hour) cell, so the
+// best gaming windows pop visually. Profiles with no shifts are treated as
+// always-free, which is the right default for a "tell me when you're busy"
+// model. Cross-midnight shifts are auto-split into two consecutive-date
+// shifts at save time so storage never has wrap-around.
+
+// Local-date helper: standard toISOString uses UTC and can shift the date
+// by a day at midnight in non-UTC timezones. This returns YYYY-MM-DD in
+// the device's local timezone, which is what the user actually means.
+function todayIso() { return toLocalIso(new Date()); }
+
+function toLocalIso(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function addDaysIso(iso, n) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + n);
+  return toLocalIso(dt);
+}
+
+function nextDate(iso) { return addDaysIso(iso, 1); }
+
+function parseIsoToDate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function nextShiftId() {
+  const now = Date.now();
+  if (now <= _shiftIdCounter) _shiftIdCounter++;
+  else _shiftIdCounter = now;
+  return _shiftIdCounter;
+}
+
+function loadScheduleRange() {
+  const defaults = { startDate: todayIso(), endDate: addDaysIso(todayIso(), 14) };
+  try {
+    const raw = localStorage.getItem(SCHEDULE_RANGE_KEY);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.startDate === 'string' && typeof parsed.endDate === 'string'
+        && parsed.endDate >= parsed.startDate) {
+      return parsed;
+    }
+  } catch(e) {}
+  return defaults;
+}
+
+function saveScheduleRange() {
+  try {
+    localStorage.setItem(SCHEDULE_RANGE_KEY, JSON.stringify(scheduleRange));
+  } catch(e) { /* storage full / private mode - non-fatal, range falls back to defaults next load */ }
+}
+
+function datesInRange() {
+  if (!scheduleRange) return [];
+  const out = [];
+  let cur = scheduleRange.startDate;
+  const end = scheduleRange.endDate;
+  // Hard cap at 90 dates: protects layout/perf if the user pastes a huge
+  // range. They can still get a 3-month view but not, say, all of 2026.
+  for (let i = 0; i < 90 && cur <= end; i++) {
+    out.push(cur);
+    cur = nextDate(cur);
+  }
+  return out;
+}
+
+// ---- Shift CRUD ----
+
+function isProfileBusy(profile, date, hour) {
+  if (!profile || !Array.isArray(profile.shifts)) return false;
+  return profile.shifts.some(s =>
+    s.date === date && hour >= s.startHour && hour < s.endHour
+  );
+}
+
+function freeCount(date, hour) {
+  return profiles.reduce((n, p) => n + (isProfileBusy(p, date, hour) ? 0 : 1), 0);
+}
+
+function freeBucket(free, total) {
+  if (total === 0) return 4;       // no profiles = nothing's busy, treat as "all free"
+  if (free === 0)  return 0;
+  const f = free / total;
+  if (f === 1)    return 4;
+  if (f >= 0.75)  return 3;
+  if (f >= 0.5)   return 2;
+  return 1;
+}
+
+function topBestSlots(limit = 3) {
+  const cells = [];
+  for (const date of datesInRange()) {
+    for (let h = 0; h < 24; h++) {
+      cells.push({ date, hour: h, free: freeCount(date, h) });
+    }
+  }
+  cells.sort((a, b) =>
+    b.free - a.free ||
+    a.date.localeCompare(b.date) ||
+    a.hour - b.hour
+  );
+  return cells.slice(0, limit);
+}
+
+function getRecentShiftTimes(limit = 5) {
+  // Aggregate all shifts across all profiles; rank distinct (start,end)
+  // ranges by frequency, tie-break by most-recent use (highest id).
+  const stats = new Map(); // key "s-e" -> { startHour, endHour, count, latestId }
+  for (const p of profiles) {
+    if (!Array.isArray(p.shifts)) continue;
+    for (const s of p.shifts) {
+      const key = `${s.startHour}-${s.endHour}`;
+      const cur = stats.get(key);
+      if (cur) {
+        cur.count++;
+        if (s.id > cur.latestId) cur.latestId = s.id;
+      } else {
+        stats.set(key, { startHour: s.startHour, endHour: s.endHour, count: 1, latestId: s.id || 0 });
+      }
+    }
+  }
+  return Array.from(stats.values())
+    .sort((a, b) => b.count - a.count || b.latestId - a.latestId)
+    .slice(0, limit);
+}
+
+function addShiftRecord(profile, date, startHour, endHour) {
+  if (endHour <= startHour) {
+    // Cross-midnight: split into two consecutive-date shifts. Storage
+    // invariant is endHour > startHour, so the two halves are independent
+    // records from here on (editing one doesn't ripple to the other).
+    profile.shifts.push({ id: nextShiftId(), date, startHour, endHour: 24 });
+    profile.shifts.push({ id: nextShiftId(), date: nextDate(date), startHour: 0, endHour });
+    return 2;
+  }
+  profile.shifts.push({ id: nextShiftId(), date, startHour, endHour });
+  return 1;
+}
+
+function removeShift(profileId, shiftId) {
+  const p = getProfileById(profileId);
+  if (!p || !Array.isArray(p.shifts)) return;
+  p.shifts = p.shifts.filter(s => s.id !== shiftId);
+  saveProfilesToStorage();
+}
+
+// ---- Schedule screen navigation ----
+
+function openScheduleScreen() {
+  closeAmbientAnimations();
+  hideMenu();
+  currentScreen = 'schedule';
+  if (!scheduleRange) scheduleRange = loadScheduleRange();
+  setScheduleSubview('heatmap');
+  renderScheduleHeatmap();
+  render();
+}
+
+function closeScheduleScreen() {
+  currentScreen = 'home';
+  currentScheduleProfileId = null;
+  editingShift = null;
+  render();
+}
+
+function goBackInSchedule() {
+  if (scheduleSubview === 'shift-form') {
+    setScheduleSubview('profile-shifts');
+    return;
+  }
+  if (scheduleSubview === 'profile-shifts') {
+    setScheduleSubview('profile-picker');
+    return;
+  }
+  if (scheduleSubview === 'profile-picker') {
+    setScheduleSubview('heatmap');
+    renderScheduleHeatmap();
+    return;
+  }
+  closeScheduleScreen();
+}
+
+function setScheduleSubview(name) {
+  scheduleSubview = name;
+  const vp = document.querySelector('.schedule-viewport');
+  if (vp) vp.dataset.subview = name;
+  document.body.dataset.scheduleSubview = name;
+}
+
+// ---- Heatmap subview ----
+
+function onScheduleRangeChange() {
+  const startEl = document.getElementById('schedule-range-start');
+  const endEl   = document.getElementById('schedule-range-end');
+  if (!startEl || !endEl) return;
+  const start = startEl.value;
+  const end   = endEl.value;
+  if (!start || !end) return;
+  if (end < start) {
+    // Auto-correct rather than reject - user almost always wants the
+    // second field to follow the first.
+    endEl.value = start;
+    scheduleRange = { startDate: start, endDate: start };
+  } else {
+    scheduleRange = { startDate: start, endDate: end };
+  }
+  saveScheduleRange();
+  renderScheduleHeatmap();
+}
+
+function renderScheduleHeatmap() {
+  if (!scheduleRange) scheduleRange = loadScheduleRange();
+  const startEl = document.getElementById('schedule-range-start');
+  const endEl   = document.getElementById('schedule-range-end');
+  if (startEl && !startEl.value) startEl.value = scheduleRange.startDate;
+  if (endEl   && !endEl.value)   endEl.value   = scheduleRange.endDate;
+  if (startEl) startEl.value = scheduleRange.startDate;
+  if (endEl)   endEl.value   = scheduleRange.endDate;
+
+  renderBestSlots();
+  renderHeatmapGrid();
+}
+
+function renderBestSlots() {
+  const container = document.getElementById('schedule-best-slots');
+  if (!container) return;
+  const total = profiles.length;
+  if (!total) {
+    container.innerHTML = `<div class="schedule-best-slot-card is-empty"><span class="schedule-best-slot-rank">No profiles yet</span><span class="schedule-best-slot-when">Add profiles first</span><span class="schedule-best-slot-free">Then mark when they're busy</span></div>`;
+    return;
+  }
+  const slots = topBestSlots(3);
+  if (!slots.length) {
+    container.innerHTML = `<div class="schedule-best-slot-card is-empty"><span class="schedule-best-slot-when">Pick a date range</span></div>`;
+    return;
+  }
+  container.innerHTML = slots.map((s, i) => {
+    const d = parseIsoToDate(s.date);
+    const dow = d.toLocaleDateString(undefined, { weekday: 'short' });
+    const md  = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const hourLabel = formatHour12(s.hour);
+    return `
+      <button type="button" class="schedule-best-slot-card" onclick="scrollToCell('${s.date}', ${s.hour})">
+        <span class="schedule-best-slot-rank">#${i + 1} best</span>
+        <span class="schedule-best-slot-when">${esc(dow)} ${esc(md)} · ${esc(hourLabel)}</span>
+        <span class="schedule-best-slot-free">${s.free}/${total} free</span>
+      </button>
+    `;
+  }).join('');
+}
+
+function renderHeatmapGrid() {
+  const grid = document.getElementById('schedule-heatmap');
+  const empty = document.getElementById('schedule-heatmap-empty');
+  const scroll = document.getElementById('schedule-heatmap-scroll');
+  if (!grid) return;
+  const dates = datesInRange();
+  const total = profiles.length;
+  if (!dates.length || total === 0) {
+    grid.innerHTML = '';
+    grid.style.gridTemplateColumns = '';
+    if (scroll) scroll.hidden = true;
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = total === 0
+        ? 'Add profiles first, then mark their work shifts here.'
+        : 'Pick a valid date range.';
+    }
+    return;
+  }
+  if (scroll) scroll.hidden = false;
+  if (empty) empty.hidden = true;
+  grid.style.gridTemplateColumns = `56px repeat(${dates.length}, 60px)`;
+
+  const parts = [];
+  // Corner cell (top-left) - sticky in both directions.
+  parts.push('<div class="schedule-heatmap-cell is-corner"></div>');
+  // Date header row.
+  for (const date of dates) {
+    const d = parseIsoToDate(date);
+    const dow = d.toLocaleDateString(undefined, { weekday: 'short' });
+    const md  = `${d.getMonth() + 1}/${d.getDate()}`;
+    parts.push(`<div class="schedule-heatmap-cell is-date-header"><span class="date-dow">${esc(dow)}</span><span class="date-md">${esc(md)}</span></div>`);
+  }
+  // Body: 24 hour rows. For each row, emit the hour label cell followed
+  // by one cell per date.
+  for (let h = 0; h < 24; h++) {
+    parts.push(`<div class="schedule-heatmap-cell is-hour-label">${esc(formatHour12(h))}</div>`);
+    for (const date of dates) {
+      const free = freeCount(date, h);
+      const bucket = freeBucket(free, total);
+      parts.push(`<div class="schedule-heatmap-cell" data-bucket="${bucket}" data-date="${esc(date)}" data-hour="${h}">${free}</div>`);
+    }
+  }
+  grid.innerHTML = parts.join('');
+}
+
+function formatHour12(h) {
+  // 0 -> "12 AM", 13 -> "1 PM", etc. Compact: no leading zero, no minutes.
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+  return `${h12} ${period}`;
+}
+
+function scrollToCell(date, hour) {
+  const grid = document.getElementById('schedule-heatmap');
+  if (!grid) return;
+  const cell = grid.querySelector(`.schedule-heatmap-cell[data-date="${CSS.escape(date)}"][data-hour="${hour}"]`);
+  if (!cell) return;
+  cell.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'center' });
+  // Brief outline flash so the target cell is easy to spot after the scroll.
+  cell.classList.add('is-target-flash');
+  setTimeout(() => cell.classList.remove('is-target-flash'), 1400);
+}
+
+// ---- Profile-picker subview ----
+
+function openScheduleProfilePicker() {
+  setScheduleSubview('profile-picker');
+  renderScheduleProfilePicker();
+}
+
+function renderScheduleProfilePicker() {
+  const container = document.getElementById('schedule-profile-picker-list');
+  if (!container) return;
+  const sorted = getProfilesSorted();
+  if (!sorted.length) {
+    container.innerHTML = '<div class="list-empty">No profiles yet. Add some from the Profiles screen first.</div>';
+    return;
+  }
+  container.innerHTML = sorted.map(p => {
+    const fid = findFighterIdByText(p.main);
+    const avatar = fid
+      ? `<span class="profile-avatar profile-avatar-icon ${p.skill}"><img src="assets/fighters/${fid}.webp" alt="" loading="lazy"></span>`
+      : `<span class="profile-avatar ${p.skill}">${esc(p.name.charAt(0).toUpperCase())}</span>`;
+    const shiftCount = Array.isArray(p.shifts) ? p.shifts.length : 0;
+    const shiftLabel = shiftCount === 0
+      ? 'No shifts'
+      : `${shiftCount} shift${shiftCount === 1 ? '' : 's'}`;
+    return `
+      <button class="profile-card" onclick="pickScheduleProfile(${p.id})">
+        ${avatar}
+        <span class="profile-info">
+          <span class="profile-name">${esc(p.name)}</span>
+          <span class="profile-main">${esc(shiftLabel)}</span>
+        </span>
+      </button>
+    `;
+  }).join('');
+}
+
+function pickScheduleProfile(id) {
+  const p = getProfileById(id);
+  if (!p) return;
+  currentScheduleProfileId = id;
+  setScheduleSubview('profile-shifts');
+  renderProfileShiftsView();
+}
+
+// ---- Profile-shifts subview ----
+
+function renderProfileShiftsView() {
+  const p = getProfileById(currentScheduleProfileId);
+  if (!p) return;
+  const nameEl = document.getElementById('schedule-shifts-name');
+  if (nameEl) nameEl.textContent = `${p.name} — shifts`;
+
+  const list = document.getElementById('schedule-shifts-list');
+  if (!list) return;
+  const shifts = Array.isArray(p.shifts) ? [...p.shifts] : [];
+  if (!shifts.length) {
+    list.innerHTML = '<div class="schedule-shifts-empty">No shifts yet. Tap "Add shift" to mark when they\'re busy.</div>';
+    return;
+  }
+  // Group by date, ascending.
+  shifts.sort((a, b) => a.date.localeCompare(b.date) || a.startHour - b.startHour);
+  const groups = new Map();
+  for (const s of shifts) {
+    if (!groups.has(s.date)) groups.set(s.date, []);
+    groups.get(s.date).push(s);
+  }
+  const parts = [];
+  for (const [date, items] of groups) {
+    const d = parseIsoToDate(date);
+    const label = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    parts.push(`<div class="schedule-shifts-date-group">`);
+    parts.push(`<div class="schedule-shifts-date-label">${esc(label)}</div>`);
+    for (const s of items) {
+      parts.push(`
+        <button type="button" class="schedule-shift-row" onclick="openShiftForm(${s.id}, '${esc(date)}')">
+          <span class="shift-time">${esc(formatHour12(s.startHour))} – ${esc(s.endHour === 24 ? '12 AM' : formatHour12(s.endHour))}</span>
+          <svg class="shift-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="9 6 15 12 9 18"/>
+          </svg>
+        </button>
+      `);
+    }
+    parts.push(`</div>`);
+  }
+  list.innerHTML = parts.join('');
+}
+
+// ---- Shift-form subview ----
+
+function openShiftForm(shiftId, comeFromDate) {
+  const p = getProfileById(currentScheduleProfileId);
+  if (!p) return;
+  editingShift = null;
+  pendingShiftReturnDate = comeFromDate || null;
+  shiftFormSelectedDates = new Set();
+
+  let startHour = 9;
+  let endHour   = 17;
+  if (shiftId != null) {
+    const existing = (p.shifts || []).find(s => s.id === shiftId);
+    if (existing) {
+      editingShift = { ...existing };
+      startHour = existing.startHour;
+      endHour   = existing.endHour;
+      shiftFormSelectedDates.add(existing.date);
+    }
+  } else if (comeFromDate) {
+    shiftFormSelectedDates.add(comeFromDate);
+  }
+
+  populateHourSelect('shift-start-hour', startHour, /* isEnd */ false);
+  populateHourSelect('shift-end-hour',   endHour,   /* isEnd */ true);
+  document.getElementById('btn-shift-delete').hidden = !editingShift;
+
+  renderShiftRecentChips();
+  renderShiftDatePills();
+  updateShiftHourHint();
+
+  setScheduleSubview('shift-form');
+}
+
+function populateHourSelect(elId, selected, isEnd) {
+  const sel = document.getElementById(elId);
+  if (!sel) return;
+  // Start range: 0..23 ("12 AM" through "11 PM").
+  // End   range: 1..24 ("1 AM"  through "12 AM" of next day).
+  const min = isEnd ? 1 : 0;
+  const max = isEnd ? 24 : 23;
+  const opts = [];
+  for (let h = min; h <= max; h++) {
+    const label = h === 24 ? '12 AM (next day)' : formatHour12(h);
+    opts.push(`<option value="${h}"${h === selected ? ' selected' : ''}>${esc(label)}</option>`);
+  }
+  sel.innerHTML = opts.join('');
+}
+
+function renderShiftRecentChips() {
+  const row  = document.getElementById('schedule-recent-row');
+  const chips = document.getElementById('schedule-recent-chips');
+  if (!row || !chips) return;
+  const recent = getRecentShiftTimes(5);
+  if (!recent.length) { row.hidden = true; chips.innerHTML = ''; return; }
+  row.hidden = false;
+  chips.innerHTML = recent.map(r => {
+    const endLabel = r.endHour === 24 ? '12 AM' : formatHour12(r.endHour);
+    return `<button type="button" class="schedule-recent-chip" onclick="applyRecentChip(${r.startHour}, ${r.endHour})">${esc(formatHour12(r.startHour))} – ${esc(endLabel)}</button>`;
+  }).join('');
+}
+
+function applyRecentChip(startHour, endHour) {
+  populateHourSelect('shift-start-hour', startHour, false);
+  populateHourSelect('shift-end-hour',   endHour,   true);
+  updateShiftHourHint();
+}
+
+function renderShiftDatePills() {
+  const container = document.getElementById('schedule-date-pills');
+  if (!container) return;
+  const dates = datesInRange();
+  if (!dates.length) {
+    container.innerHTML = '<div class="schedule-shifts-empty">Set a date range on the heatmap first.</div>';
+    return;
+  }
+  container.innerHTML = dates.map(date => {
+    const d = parseIsoToDate(date);
+    const dow = d.toLocaleDateString(undefined, { weekday: 'short' });
+    const md  = `${d.getMonth() + 1}/${d.getDate()}`;
+    const on  = shiftFormSelectedDates.has(date);
+    return `<button type="button" class="schedule-date-pill${on ? ' is-on' : ''}" data-date="${esc(date)}" onclick="toggleDatePill('${esc(date)}')"><span class="pill-dow">${esc(dow)}</span>${esc(md)}</button>`;
+  }).join('');
+}
+
+function toggleDatePill(date) {
+  if (shiftFormSelectedDates.has(date)) shiftFormSelectedDates.delete(date);
+  else shiftFormSelectedDates.add(date);
+  // Toggle the class in place so we don't re-render the whole list and
+  // lose scroll position when the pill row overflows.
+  const pill = document.querySelector(`.schedule-date-pill[data-date="${CSS.escape(date)}"]`);
+  if (pill) pill.classList.toggle('is-on', shiftFormSelectedDates.has(date));
+}
+
+function getShiftFormHours() {
+  const s = parseInt(document.getElementById('shift-start-hour').value, 10);
+  const e = parseInt(document.getElementById('shift-end-hour').value, 10);
+  return { startHour: s, endHour: e };
+}
+
+function onShiftHourChange() { updateShiftHourHint(); }
+
+function updateShiftHourHint() {
+  const hint = document.getElementById('schedule-hour-hint');
+  if (!hint) return;
+  const { startHour, endHour } = getShiftFormHours();
+  if (endHour === startHour) {
+    hint.textContent = 'Start and end hour can\'t be the same.';
+    hint.classList.add('is-error');
+    return;
+  }
+  hint.classList.remove('is-error');
+  if (endHour < startHour) {
+    hint.textContent = `Crosses midnight — will save as two shifts (${formatHour12(startHour)} – 12 AM, then 12 AM – ${formatHour12(endHour)} the next day).`;
+  } else {
+    const span = endHour - startHour;
+    hint.textContent = `${span} hour${span === 1 ? '' : 's'} busy.`;
+  }
+}
+
+function saveShiftForm() {
+  const p = getProfileById(currentScheduleProfileId);
+  if (!p) return;
+  const { startHour, endHour } = getShiftFormHours();
+  if (endHour === startHour) {
+    showToast('Start and end hour must differ', { variant: 'error' });
+    return;
+  }
+  const dates = Array.from(shiftFormSelectedDates).sort();
+  if (!dates.length) {
+    showToast('Pick at least one date', { variant: 'error' });
+    return;
+  }
+  if (!Array.isArray(p.shifts)) p.shifts = [];
+
+  // Editing: remove the original record before re-adding, so changing the
+  // hours of an existing shift updates in place rather than duplicating.
+  if (editingShift) {
+    p.shifts = p.shifts.filter(s => s.id !== editingShift.id);
+  }
+
+  let added = 0;
+  for (const date of dates) added += addShiftRecord(p, date, startHour, endHour);
+  saveProfilesToStorage();
+
+  showToast(`Saved ${added} shift${added === 1 ? '' : 's'}`);
+  editingShift = null;
+  pendingShiftReturnDate = null;
+  renderProfileShiftsView();
+  renderScheduleHeatmap();   // keeps the heatmap fresh for when the user navigates back
+  setScheduleSubview('profile-shifts');
+}
+
+async function deleteEditingShift() {
+  if (!editingShift) return;
+  const ok = await showConfirm({
+    title: 'Delete shift?',
+    body: 'This single shift will be removed.',
+    danger: true,
+    confirmLabel: 'Delete'
+  });
+  if (!ok) return;
+  removeShift(currentScheduleProfileId, editingShift.id);
+  editingShift = null;
+  renderProfileShiftsView();
+  renderScheduleHeatmap();
+  setScheduleSubview('profile-shifts');
 }
 
 // Wrapper used by the menu option buttons so picking a mode auto-closes
@@ -1586,6 +2197,8 @@ document.addEventListener('keydown', e => {
   }
   if (currentScreen === 'profiles') {
     goBackInProfiles();
+  } else if (currentScreen === 'schedule') {
+    goBackInSchedule();
   }
 });
 
