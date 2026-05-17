@@ -1985,6 +1985,73 @@ body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none;
 }
 .schedule-recent-chip:active { background: rgba(77, 159, 255, 0.20); }
 
+/* Unavailable-all-day toggle: shifts the form between "specific hours" and
+   "block the whole day" modes. ON state hides the hour selects so the
+   user doesn't get confused about why those values are ignored. */
+.schedule-allday-row { margin-bottom: 4px; }
+.schedule-allday-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.schedule-allday-btn:active { background: var(--surface); }
+.schedule-allday-btn.is-on {
+  background: rgba(255, 201, 77, 0.10);
+  border-color: rgba(255, 201, 77, 0.50);
+}
+.allday-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 2px solid var(--dim);
+  flex-shrink: 0;
+  position: relative;
+}
+.schedule-allday-btn.is-on .allday-check {
+  border-color: var(--set);
+  background: var(--set);
+}
+.schedule-allday-btn.is-on .allday-check::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 0;
+  width: 6px;
+  height: 11px;
+  border: solid var(--bg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.allday-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.allday-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.schedule-allday-btn.is-on .allday-title { color: var(--set); }
+.allday-sub {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--dim);
+}
+
 .schedule-time-row {
   display: flex;
   gap: 10px;
