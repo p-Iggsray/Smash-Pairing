@@ -1655,8 +1655,15 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   padding-top: env(safe-area-inset-top);
 }
 body[data-screen="schedule"] #schedule { transform: translateX(0); }
-body[data-screen="schedule"] header,
-body[data-screen="schedule"] #menu-btn { display: none; }
+body[data-screen="schedule"] header { display: none; }
+
+/* The hamburger is the only way back to home from the heatmap root (the
+   header back button now lives on sub-views only and swaps with the
+   pencil). Sub-views hide it again so the back-arrow is the unambiguous
+   exit. !important because render() sets menu-btn's display inline. */
+body[data-screen="schedule"][data-schedule-subview="profile-picker"] #menu-btn,
+body[data-screen="schedule"][data-schedule-subview="profile-shifts"] #menu-btn,
+body[data-screen="schedule"][data-schedule-subview="shift-form"]     #menu-btn { display: none !important; }
 
 .schedule-edit-btn {
   width: 40px;
@@ -1675,8 +1682,13 @@ body[data-screen="schedule"] #menu-btn { display: none; }
 .schedule-edit-btn:active { background: rgba(255, 255, 255, 0.04); }
 .schedule-edit-btn svg { width: 22px; height: 22px; }
 
-/* The pencil only makes sense from the heatmap; hide it elsewhere so the
-   header doesn't suggest editing the picker/shifts/form itself. */
+/* Empty 40x40 cell on the header's left edge so the title stays visually
+   centered now that the left chevron is gone. */
+.schedule-header-spacer { width: 40px; height: 40px; }
+
+/* The pencil only makes sense from the heatmap, and the back-icon only
+   makes sense outside it - they swap into the same top-right slot. */
+body[data-schedule-subview="heatmap"] .schedule-back-icon-btn { display: none; }
 body[data-schedule-subview="profile-picker"] .schedule-edit-btn,
 body[data-schedule-subview="profile-shifts"] .schedule-edit-btn,
 body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none; }
@@ -1892,10 +1904,6 @@ body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.78rem;
 }
-.schedule-picker-back {
-  width: 100%;
-  margin-top: 16px;
-}
 
 /* Profile-shifts subview: header + list of shift rows + Add button. */
 .schedule-shifts-header { margin-bottom: 12px; }
@@ -1913,13 +1921,8 @@ body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none;
   gap: 6px;
   margin-bottom: 16px;
 }
-.schedule-shifts-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.schedule-shifts-actions .btn-profile-save,
-.schedule-shifts-actions .btn-close-modal { width: 100%; }
+.schedule-shifts-actions { display: flex; }
+.schedule-shifts-actions .btn-profile-save { flex: 1; }
 .schedule-shifts-date-group {
   display: flex;
   flex-direction: column;
