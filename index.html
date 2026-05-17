@@ -18,7 +18,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=63">
+  <link rel="stylesheet" href="assets/styles.css?v=64">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -338,19 +338,13 @@
 
 <div id="schedule">
   <div class="profiles-header">
-    <div class="schedule-header-spacer" aria-hidden="true"></div>
-    <span class="profiles-title" id="schedule-title">Scheduling</span>
-    <button class="schedule-edit-btn" id="schedule-edit-btn" aria-label="Edit availability" onclick="openScheduleProfilePicker()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 20h9"/>
-        <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/>
-      </svg>
-    </button>
-    <button class="schedule-edit-btn schedule-back-icon-btn" id="schedule-back-btn" aria-label="Back" onclick="goBackInSchedule()">
+    <button class="profiles-back-btn" id="schedule-back-btn" aria-label="Back" onclick="goBackInSchedule()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polyline points="15 18 9 12 15 6"/>
       </svg>
     </button>
+    <span class="profiles-title" id="schedule-title">Scheduling</span>
+    <div class="schedule-header-spacer" aria-hidden="true"></div>
   </div>
 
   <div class="schedule-viewport" data-subview="heatmap">
@@ -365,6 +359,12 @@
           <span class="form-label">To</span>
           <input type="date" id="schedule-range-end" onchange="onScheduleRangeChange()">
         </label>
+        <button type="button" class="schedule-edit-availability-btn" aria-label="Edit availability" onclick="openScheduleProfilePicker()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4Z"/>
+          </svg>
+        </button>
       </div>
       <div class="schedule-best-slots" id="schedule-best-slots"></div>
       <div class="schedule-heatmap-scroll" id="schedule-heatmap-scroll">
@@ -673,7 +673,7 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=55"></script>
+<script src="assets/app.js?v=56"></script>
 
 </body>
 </html>
