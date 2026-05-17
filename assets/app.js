@@ -1164,19 +1164,6 @@ function setScheduleSubview(name) {
   const vp = document.querySelector('.schedule-viewport');
   if (vp) vp.dataset.subview = name;
   document.body.dataset.scheduleSubview = name;
-  const label = document.getElementById('schedule-back-label');
-  if (label) label.textContent = getScheduleBackLabel(name);
-}
-
-// Context-aware label for the header's back button. Tells the user the
-// destination they'll land on rather than a bare "Back", iOS-style.
-function getScheduleBackLabel(subview) {
-  switch (subview) {
-    case 'profile-picker': return 'Calendar';
-    case 'profile-shifts': return 'Profiles';
-    case 'shift-form':     return 'Shifts';
-    default:               return 'Back';
-  }
 }
 
 // ---- Heatmap subview ----
