@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(superpowers:brainstorming)",
+      "Bash(gh api *)",
+      "PowerShell(gh api *)",
+      "Bash(git diff *)"
+    ]
+  }
+}
