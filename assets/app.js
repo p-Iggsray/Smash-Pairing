@@ -1149,6 +1149,7 @@ function goBackInSchedule() {
   }
   if (scheduleSubview === 'profile-shifts') {
     setScheduleSubview('profile-picker');
+    renderScheduleProfilePicker();
     return;
   }
   if (scheduleSubview === 'profile-picker') {
