@@ -10,8 +10,8 @@
 // and behaves exactly as it did before Supabase was added.
 
 window.SMASH_PAIRING_SUPABASE = {
-  url:     'YOUR_SUPABASE_PROJECT_URL',
-  anonKey: 'YOUR_SUPABASE_ANON_KEY',
+  url: 'https://dnphmjkueburcvhhwokr.supabase.co/rest/v1/',
+  anonKey: 'sb_publishable_nIXMDUH00FZrYjr9T3FXFQ_xK43QDCM',
 
   // Fake-email domain used to convert a username into something Supabase Auth
   // will accept. Users never see this. Change it if you want, but never change
