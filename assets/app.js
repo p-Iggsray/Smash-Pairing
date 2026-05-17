@@ -869,17 +869,20 @@ async function deleteCurrentProfile() {
 }
 
 function isProfileFormDirty() {
-  const name  = document.getElementById('profile-name').value.trim();
-  const main  = document.getElementById('profile-main').value.trim();
-  const notes = document.getElementById('profile-notes').value.trim();
-  const skill = getProfileFormSkill();
+  const name       = document.getElementById('profile-name').value.trim();
+  const main       = document.getElementById('profile-main').value.trim();
+  const notes      = document.getElementById('profile-notes').value.trim();
+  const skill      = getProfileFormSkill();
+  const attendance = getProfileFormAttendance();
   if (editingProfile) {
-    return name  !== editingProfile.name ||
-           main  !== (editingProfile.main  || '') ||
-           notes !== (editingProfile.notes || '') ||
-           skill !== editingProfile.skill;
+    const origAttendance = typeof editingProfile.attendance === 'number' ? editingProfile.attendance : 5;
+    return name       !== editingProfile.name ||
+           main       !== (editingProfile.main  || '') ||
+           notes      !== (editingProfile.notes || '') ||
+           skill      !== editingProfile.skill ||
+           attendance !== origAttendance;
   }
-  return Boolean(name || main || notes) || skill !== 'exp';
+  return Boolean(name || main || notes) || skill !== 'exp' || attendance !== 5;
 }
 
 function renderProfileStats() {
