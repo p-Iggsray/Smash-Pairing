@@ -1481,6 +1481,10 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   touch-action: pan-y;
 }
 .profile-card:active { background: var(--surface); }
+/* Needed because .profile-card sets display:flex, which beats the
+   implicit display:none the `hidden` attribute relies on. Without this
+   the picker search filter ran but no rows visibly disappeared. */
+.profile-card[hidden] { display: none; }
 .profile-avatar {
   width: 40px;
   height: 40px;
