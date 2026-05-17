@@ -1592,6 +1592,45 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   letter-spacing: 0.08em;
   color: var(--dim);
 }
+/* Secondary helper text under a .form-label, used by the Attendance
+   slider to explain what the 0-10 value means. Smaller and dimmer than
+   the label, no uppercase. */
+.form-helper {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--dim);
+  opacity: 0.7;
+  margin-top: -2px;
+}
+
+/* Attendance slider row: range input takes the available width, the
+   numeric value sits to the right in a fixed-width monospace box so it
+   doesn't jitter as the digit count changes. */
+.profile-attendance-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.profile-attendance-row input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--set);
+  background: transparent;
+  padding: 0;
+  border: none;
+}
+.profile-attendance-out {
+  min-width: 28px;
+  text-align: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
 .profile-form input,
 .profile-form textarea {
   background: var(--bg);
@@ -1835,6 +1874,38 @@ body[data-screen="schedule"] #menu-btn { display: none !important; }
   border-color: var(--border);
   color: var(--dim);
   cursor: default;
+}
+
+/* Share row sits between the best-slot cards and the heatmap. Pair of
+   pill buttons - left primary "Share image", right secondary "Copy text". */
+.schedule-share-row {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+.schedule-share-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.schedule-share-btn:active { transform: translateY(1px); filter: brightness(1.15); }
+.schedule-share-btn svg { flex-shrink: 0; }
+.schedule-share-btn-secondary {
+  background: transparent;
+  color: var(--dim);
 }
 
 /* Heatmap: CSS grid with sticky hour labels (left) and sticky date headers
