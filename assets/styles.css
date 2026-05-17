@@ -1909,8 +1909,13 @@ body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none;
   gap: 6px;
   margin-bottom: 16px;
 }
-.schedule-shifts-actions { display: flex; }
-.schedule-shifts-actions .btn-profile-save { flex: 1; }
+.schedule-shifts-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.schedule-shifts-actions .btn-profile-save,
+.schedule-shifts-actions .btn-close-modal { width: 100%; }
 .schedule-shifts-date-group {
   display: flex;
   flex-direction: column;

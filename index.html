@@ -384,6 +384,7 @@
       <div class="schedule-shifts-list" id="schedule-shifts-list"></div>
       <div class="schedule-shifts-actions">
         <button type="button" class="btn-profile-save" onclick="openShiftForm(null, null)">Add shift</button>
+        <button type="button" class="btn-close-modal" onclick="goBackInSchedule()">Back to profiles</button>
       </div>
     </section>
 
@@ -424,6 +425,7 @@
         <div class="profile-form-actions">
           <button type="submit" class="btn-profile-save">Save shift</button>
           <button type="button" class="btn-profile-delete" id="btn-shift-delete" hidden onclick="deleteEditingShift()">Delete shift</button>
+          <button type="button" class="btn-close-modal" onclick="goBackInSchedule()">Cancel</button>
         </div>
       </form>
     </section>
