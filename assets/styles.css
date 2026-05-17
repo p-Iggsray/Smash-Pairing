@@ -1892,6 +1892,10 @@ body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.78rem;
 }
+.schedule-picker-back {
+  width: 100%;
+  margin-top: 16px;
+}
 
 /* Profile-shifts subview: header + list of shift rows + Add button. */
 .schedule-shifts-header { margin-bottom: 12px; }
