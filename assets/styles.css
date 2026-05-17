@@ -1658,28 +1658,34 @@ body[data-screen="schedule"] #schedule { transform: translateX(0); }
 body[data-screen="schedule"] header,
 body[data-screen="schedule"] #menu-btn { display: none; }
 
-.schedule-edit-btn {
-  width: 40px;
-  height: 40px;
+/* Empty 40x40 cell on the header's right edge so the title stays
+   visually centered opposite the back chevron on the left. */
+.schedule-header-spacer { width: 40px; height: 40px; }
+
+/* Edit-availability button lives inside the heatmap content (top of the
+   date-range row) since the header now carries only the back chevron.
+   Icon-only, sized to match the inputs' visual height. */
+.schedule-edit-availability-btn {
+  align-self: flex-end;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   color: var(--text);
   cursor: pointer;
-  border-radius: 8px;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s, border-color 0.15s;
 }
-.schedule-edit-btn:active { background: rgba(255, 255, 255, 0.04); }
-.schedule-edit-btn svg { width: 22px; height: 22px; }
-
-/* The pencil only makes sense from the heatmap; hide it elsewhere so the
-   header doesn't suggest editing the picker/shifts/form itself. */
-body[data-schedule-subview="profile-picker"] .schedule-edit-btn,
-body[data-schedule-subview="profile-shifts"] .schedule-edit-btn,
-body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none; }
+.schedule-edit-availability-btn:active {
+  background: var(--bg);
+  border-color: rgba(255, 201, 77, 0.4);
+}
+.schedule-edit-availability-btn svg { width: 20px; height: 20px; }
 
 .schedule-viewport {
   flex: 1;
@@ -1892,10 +1898,6 @@ body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.78rem;
 }
-.schedule-picker-back {
-  width: 100%;
-  margin-top: 16px;
-}
 
 /* Profile-shifts subview: header + list of shift rows + Add button. */
 .schedule-shifts-header { margin-bottom: 12px; }
@@ -1913,13 +1915,8 @@ body[data-schedule-subview="shift-form"]     .schedule-edit-btn { display: none;
   gap: 6px;
   margin-bottom: 16px;
 }
-.schedule-shifts-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.schedule-shifts-actions .btn-profile-save,
-.schedule-shifts-actions .btn-close-modal { width: 100%; }
+.schedule-shifts-actions { display: flex; }
+.schedule-shifts-actions .btn-profile-save { flex: 1; }
 .schedule-shifts-date-group {
   display: flex;
   flex-direction: column;
