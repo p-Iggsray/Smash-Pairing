@@ -18,7 +18,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=66">
+  <link rel="stylesheet" href="assets/styles.css?v=67">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -374,8 +374,14 @@
     </section>
 
     <section class="schedule-view schedule-view-profile-picker">
-      <div class="main-picker-search-row">
+      <div class="main-picker-search-row schedule-picker-search-row">
         <input type="search" id="schedule-picker-search" placeholder="Search profiles..." autocomplete="off" autocorrect="off" spellcheck="false" oninput="filterScheduleProfilePicker()">
+        <button type="button" class="picker-search-clear" id="schedule-picker-search-clear" aria-label="Clear search" hidden onclick="clearScheduleProfilePickerSearch()">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+            <line x1="6" y1="6"  x2="18" y2="18"/>
+            <line x1="18" y1="6" x2="6"  y2="18"/>
+          </svg>
+        </button>
       </div>
       <p class="schedule-picker-hint">Pick a profile to edit their work shifts.</p>
       <div class="profiles-list" id="schedule-profile-picker-list"></div>
@@ -677,7 +683,7 @@
   <span class="toast-text" id="toast-text"></span>
 </div>
 
-<script src="assets/app.js?v=58"></script>
+<script src="assets/app.js?v=59"></script>
 
 </body>
 </html>
