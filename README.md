@@ -7,7 +7,7 @@
 <p align="center"><em>Random 2v2 team generator for <strong>Super Smash Bros Ultimate</strong>. Built for friendly sets between mates. Drops a 30-minute bracket-setup ritual to under five.</em></p>
 
 <p align="center">
-  <a href="https://p-iggsray.github.io/Smash-Pairing/">
+  <a href="https://smash-pairing.priggs32304.workers.dev/">
     <img src="https://img.shields.io/badge/Play%20Now-Live%20Demo-e8442e?style=for-the-badge&labelColor=1a0a14" alt="Play Now">
   </a>
 </p>
@@ -93,7 +93,7 @@ The **Set Teams** panel on the Home screen locks specific pairs that always play
 
 Install on iPhone:
 
-1. Open the **[live demo](https://p-iggsray.github.io/Smash-Pairing/)** in **Safari.** iOS doesn't let Chrome or Firefox install PWAs.
+1. Open the **[live demo](https://smash-pairing.priggs32304.workers.dev/)** in **Safari.** iOS doesn't let Chrome or Firefox install PWAs.
 2. Tap the **Share** button.
 3. Choose **Add to Home Screen.**
 4. Icon shows up labeled **Smash Pairing.**
@@ -123,7 +123,7 @@ Folder layout: `index.html`, `service-worker.js`, and `manifest.webmanifest` at 
 - Plain HTML, CSS, JavaScript. No frameworks, no bundler, no dependencies.
 - State in `localStorage`. Auto-saves on every change.
 - Service worker — network-first with cache fallback. New deploys reach installed PWAs within seconds.
-- Hosted on **GitHub Pages.**
+- Hosted on a **Cloudflare Worker** serving static assets.
 
 ---
 
