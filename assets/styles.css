@@ -1655,8 +1655,11 @@ body[data-profiles-subview="main-picker"] .profiles-stats { display: none; }
   padding-top: env(safe-area-inset-top);
 }
 body[data-screen="schedule"] #schedule { transform: translateX(0); }
-body[data-screen="schedule"] header,
-body[data-screen="schedule"] #menu-btn { display: none; }
+body[data-screen="schedule"] header { display: none; }
+/* render() sets menu-btn's display inline ('flex' when no tournament is
+   paired), which beats a non-!important rule and lets the fixed-position
+   hamburger float over the back chevron in the Scheduling header. */
+body[data-screen="schedule"] #menu-btn { display: none !important; }
 
 /* Empty 40x40 cell on the header's right edge so the title stays
    visually centered opposite the back chevron on the left. */
