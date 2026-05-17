@@ -576,9 +576,18 @@
             <span class="menu-option-desc">Quick onboarding</span>
           </button>
           <hr class="menu-divider">
+          <button class="menu-option" id="menu-export" role="menuitem" onclick="exportData()">
+            <span class="menu-option-title">Export backup</span>
+            <span class="menu-option-desc">Download a JSON file of all your data</span>
+          </button>
+          <button class="menu-option" id="menu-import" role="menuitem" onclick="triggerImport()">
+            <span class="menu-option-title">Import backup</span>
+            <span class="menu-option-desc">Replace current data with a backup file</span>
+          </button>
+          <hr class="menu-divider">
           <button class="menu-option destructive" id="menu-reset" role="menuitem" onclick="confirmResetAll()">
             <span class="menu-option-title">Reset all data</span>
-            <span class="menu-option-desc">Wipe roster, presets, state</span>
+            <span class="menu-option-desc">Wipe roster, presets, profiles, schedule</span>
           </button>
         </div>
       </section>
@@ -586,6 +595,9 @@
     </div>
   </div>
 </div>
+
+<!-- Hidden file picker used by the Import backup flow -->
+<input type="file" id="import-file-input" accept="application/json,.json" hidden onchange="handleImportFile(event)">
 
 <!-- Roster presets modal -->
 

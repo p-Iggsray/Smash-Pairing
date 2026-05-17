@@ -2150,18 +2150,106 @@ function handleHowToPlayBackdropClick(e) {
   if (e.target === document.getElementById('how-to-play-modal')) hideHowToPlay();
 }
 
+// All localStorage keys the app owns. Export/Import/Reset all walk this list,
+// so adding a new persisted key in one place keeps every data action in sync.
+const ALL_STORAGE_KEYS = [STORAGE_KEY, PRESETS_KEY, PROFILES_KEY, SCHEDULE_RANGE_KEY];
+
+function exportData() {
+  hideMenu();
+  try {
+    const data = {};
+    for (const key of ALL_STORAGE_KEYS) data[key] = localStorage.getItem(key);
+    const payload = {
+      app: 'smash-pairing',
+      version: APP_VERSION,
+      exportedAt: new Date().toISOString(),
+      data
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const today = new Date().toISOString().slice(0, 10);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `smash-pairing-backup-${today}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    showToast('Backup downloaded');
+  } catch (e) {
+    showToast('Export failed', { variant: 'error' });
+  }
+}
+
+function triggerImport() {
+  hideMenu();
+  document.getElementById('import-file-input').click();
+}
+
+async function handleImportFile(event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  // Clear the value so picking the same file again later still fires change.
+  input.value = '';
+  if (!file) return;
+
+  let payload;
+  try {
+    const text = await file.text();
+    payload = JSON.parse(text);
+  } catch (e) {
+    showToast('Could not read file', { variant: 'error' });
+    return;
+  }
+
+  if (!payload || typeof payload !== 'object' || !payload.data || typeof payload.data !== 'object') {
+    showToast('Not a Smash Pairing backup', { variant: 'error' });
+    return;
+  }
+  const hasAnyKey = ALL_STORAGE_KEYS.some(k => Object.prototype.hasOwnProperty.call(payload.data, k));
+  if (!hasAnyKey) {
+    showToast('Not a Smash Pairing backup', { variant: 'error' });
+    return;
+  }
+
+  const ok = await showConfirm({
+    title: 'Replace all data with this backup?',
+    body: 'Your current roster, presets, profiles, and schedule will be overwritten. This cannot be undone.',
+    danger: true,
+    confirmLabel: 'Import'
+  });
+  if (!ok) return;
+
+  try {
+    for (const key of ALL_STORAGE_KEYS) {
+      const value = payload.data[key];
+      if (typeof value === 'string') {
+        localStorage.setItem(key, value);
+      } else if (value === null || value === undefined) {
+        localStorage.removeItem(key);
+      } else {
+        // Defensive: accept already-parsed objects too.
+        localStorage.setItem(key, JSON.stringify(value));
+      }
+    }
+  } catch (e) {
+    showToast('Import failed', { variant: 'error' });
+    return;
+  }
+  location.reload();
+}
+
 async function confirmResetAll() {
   hideMenu();
   const ok = await showConfirm({
     title: 'Reset all data?',
-    body: 'This permanently clears your roster, all presets, and any saved state. This cannot be undone.',
+    body: 'This permanently clears your roster, presets, profiles, and schedule. This cannot be undone.',
     danger: true,
     confirmLabel: 'Reset'
   });
   if (!ok) return;
   try {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(PRESETS_KEY);
+    for (const key of ALL_STORAGE_KEYS) localStorage.removeItem(key);
   } catch (e) { /* if storage is unavailable, reload will still re-init defaults */ }
   location.reload();
 }
