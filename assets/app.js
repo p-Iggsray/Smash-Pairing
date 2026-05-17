@@ -1099,7 +1099,18 @@ const HEATMAP_HOUR_END   = 23;
 // block's score only if they are free for EVERY hour in the block - no
 // mid-tournament leavers - and contributes their own `attendance` (0-10,
 // default 5) so frequent attendees pull a slot up the rankings.
+//
+// Two extra rules keep the picks practically useful:
+//  - One slot per day: the top N recommendations are on N distinct dates,
+//    so we never surface "Sat 3 PM, Sat 4 PM, Sat 5 PM" - users want
+//    different days to choose from, not three near-identical slots.
+//  - Earliness penalty: each hour past the heatmap start subtracts
+//    LATE_PENALTY_PER_HOUR from the window's weight when comparing slots.
+//    A late-evening slot has to beat a morning slot by a meaningful number
+//    of extra attendees to win - people are reluctant to show up and stay
+//    late, so we lean earlier when attendance is close.
 const TOURNAMENT_WINDOW_HOURS = 4;
+const LATE_PENALTY_PER_HOUR = 1.5;
 
 function isProfileFreeForWindow(profile, date, startHour, windowHours) {
   for (let h = startHour; h < startHour + windowHours; h++) {
@@ -1119,26 +1130,46 @@ function windowScore(date, startHour, windowHours) {
   return { weight, count };
 }
 
+function adjustedWindowScore(weight, startHour) {
+  // Linear earliness preference: each hour past the heatmap start eats a
+  // bit of the weight. A morning window with slightly fewer attendees can
+  // outrank a late-evening one once the lateness penalty exceeds the
+  // attendance gap (default ~3 typical attendees over 10 hours).
+  return weight - LATE_PENALTY_PER_HOUR * (startHour - HEATMAP_HOUR_START);
+}
+
 function topBestSlots(limit = 3) {
   const W = TOURNAMENT_WINDOW_HOURS;
   // start + W must fit inside the heatmap band; last hour the block can
   // occupy is HEATMAP_HOUR_END (inclusive), so latest start is
   // HEATMAP_HOUR_END + 1 - W.
   const latestStart = HEATMAP_HOUR_END + 1 - W;
-  const cells = [];
+
+  // Collapse to one window per date: pick the day's best window, then
+  // rank dates against each other. Avoids stacking the top picks on a
+  // single attendance-heavy date.
+  const days = [];
   for (const date of datesInRange()) {
+    let best = null;
     for (let h = HEATMAP_HOUR_START; h <= latestStart; h++) {
       const { weight, count } = windowScore(date, h, W);
-      cells.push({ date, startHour: h, endHour: h + W, weight, count });
+      const score = adjustedWindowScore(weight, h);
+      if (!best ||
+          score > best.score ||
+          (score === best.score && count > best.count) ||
+          (score === best.score && count === best.count && h < best.startHour)) {
+        best = { date, startHour: h, endHour: h + W, weight, count, score };
+      }
     }
+    if (best) days.push(best);
   }
-  cells.sort((a, b) =>
-    b.weight - a.weight ||
+  days.sort((a, b) =>
+    b.score - a.score ||
     b.count - a.count ||
     a.date.localeCompare(b.date) ||
     a.startHour - b.startHour
   );
-  return cells.slice(0, limit);
+  return days.slice(0, limit);
 }
 
 function getRecentShiftTimes(limit = 5) {
@@ -1601,7 +1632,7 @@ async function exportScheduleAsImage() {
   const stamp = new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   ctx.fillText(`Generated ${stamp}`, PAD, y + 14);
   ctx.textAlign = 'right';
-  ctx.fillText('attendance-weighted · strict 4h windows', PAD + inner, y + 14);
+  ctx.fillText('one per day · attendance + earliness weighted', PAD + inner, y + 14);
   y += 32 + PAD;
 
   // ---- Trim to actual height and export ----
