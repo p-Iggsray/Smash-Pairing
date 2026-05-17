@@ -1066,10 +1066,16 @@ function freeBucket(free, total) {
   return 1;
 }
 
+// Heatmap shows the daytime/evening band only - midnight-through-morning
+// columns add a lot of vertical scroll for hours nobody schedules. 9 AM
+// through 11 PM (inclusive) covers the realistic range.
+const HEATMAP_HOUR_START = 9;
+const HEATMAP_HOUR_END   = 23;
+
 function topBestSlots(limit = 3) {
   const cells = [];
   for (const date of datesInRange()) {
-    for (let h = 0; h < 24; h++) {
+    for (let h = HEATMAP_HOUR_START; h <= HEATMAP_HOUR_END; h++) {
       cells.push({ date, hour: h, free: freeCount(date, h) });
     }
   }
@@ -1262,14 +1268,16 @@ function renderHeatmapGrid() {
     const md  = `${d.getMonth() + 1}/${d.getDate()}`;
     parts.push(`<div class="schedule-heatmap-cell is-date-header"><span class="date-dow">${esc(dow)}</span><span class="date-md">${esc(md)}</span></div>`);
   }
-  // Body: 24 hour rows. For each row, emit the hour label cell followed
-  // by one cell per date.
-  for (let h = 0; h < 24; h++) {
+  // Body: one row per hour in the daytime band (see HEATMAP_HOUR_*
+  // constants). For each row, emit the hour label cell followed by one
+  // cell per date. Cells are tappable - opens a modal listing who is
+  // available vs busy at that (date, hour).
+  for (let h = HEATMAP_HOUR_START; h <= HEATMAP_HOUR_END; h++) {
     parts.push(`<div class="schedule-heatmap-cell is-hour-label">${esc(formatHour12(h))}</div>`);
     for (const date of dates) {
       const free = freeCount(date, h);
       const bucket = freeBucket(free, total);
-      parts.push(`<div class="schedule-heatmap-cell" data-bucket="${bucket}" data-date="${esc(date)}" data-hour="${h}">${free}</div>`);
+      parts.push(`<div class="schedule-heatmap-cell is-tappable" data-bucket="${bucket}" data-date="${esc(date)}" data-hour="${h}" role="button" tabindex="0" onclick="openScheduleCellModal('${esc(date)}', ${h})">${free}</div>`);
     }
   }
   grid.innerHTML = parts.join('');
@@ -1291,6 +1299,47 @@ function scrollToCell(date, hour) {
   // Brief outline flash so the target cell is easy to spot after the scroll.
   cell.classList.add('is-target-flash');
   setTimeout(() => cell.classList.remove('is-target-flash'), 1400);
+}
+
+// ---- Heatmap cell-detail modal: who can vs. can't make a given hour ----
+
+function openScheduleCellModal(date, hour) {
+  const d = parseIsoToDate(date);
+  const dow = d.toLocaleDateString(undefined, { weekday: 'short' });
+  const md  = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  document.getElementById('schedule-cell-title').textContent =
+    `${dow} ${md} · ${formatHour12(hour)}`;
+
+  const available = [];
+  const busy = [];
+  for (const p of getProfilesSorted()) {
+    (isProfileBusy(p, date, hour) ? busy : available).push(p);
+  }
+
+  const total = available.length + busy.length;
+  document.getElementById('schedule-cell-available-count').textContent =
+    `${available.length}/${total}`;
+  document.getElementById('schedule-cell-busy-count').textContent =
+    `${busy.length}/${total}`;
+  document.getElementById('schedule-cell-available-list').innerHTML =
+    renderScheduleCellList(available);
+  document.getElementById('schedule-cell-busy-list').innerHTML =
+    renderScheduleCellList(busy);
+
+  document.getElementById('schedule-cell-modal').classList.add('open');
+}
+
+function renderScheduleCellList(arr) {
+  if (!arr.length) return `<div class="schedule-cell-empty">No one</div>`;
+  return arr.map(p => `<div class="schedule-cell-name">${esc(p.name)}</div>`).join('');
+}
+
+function hideScheduleCellModal() {
+  document.getElementById('schedule-cell-modal').classList.remove('open');
+}
+
+function handleScheduleCellBackdropClick(e) {
+  if (e.target === document.getElementById('schedule-cell-modal')) hideScheduleCellModal();
 }
 
 // ---- Profile-picker subview ----

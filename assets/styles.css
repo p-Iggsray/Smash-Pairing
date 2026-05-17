@@ -1917,6 +1917,75 @@ body[data-screen="schedule"] #menu-btn { display: none !important; }
   outline: 2px solid var(--set);
   outline-offset: -2px;
 }
+/* Body cells are tappable - opens the availability modal. Reset native
+   button styling and give a brief tap feedback. */
+.schedule-heatmap-cell.is-tappable { cursor: pointer; }
+.schedule-heatmap-cell.is-tappable:active { filter: brightness(1.25); }
+
+/* Heatmap cell-detail modal: two side-by-side lists of profile names
+   - "Available" in green, "Busy" in red. Stacks on narrow widths. */
+.schedule-cell-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 4px 2px;
+}
+.schedule-cell-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.schedule-cell-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.schedule-cell-available .schedule-cell-section-title {
+  background: rgba(46, 232, 160, 0.14);
+  color: var(--inexp);
+}
+.schedule-cell-busy .schedule-cell-section-title {
+  background: rgba(239, 68, 68, 0.14);
+  color: rgba(239, 99, 99, 0.95);
+}
+.schedule-cell-section-count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.85;
+}
+.schedule-cell-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.schedule-cell-name {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+.schedule-cell-empty {
+  color: var(--dim);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  padding: 4px 10px;
+}
 .schedule-heatmap-empty {
   text-align: center;
   margin-top: 24px;
