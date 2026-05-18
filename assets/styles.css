@@ -3052,88 +3052,54 @@ html.login-locked body {
 .login-card {
   width: 100%;
   max-width: 380px;
-  background: #161820;
   border: 1px solid var(--border);
   border-radius: 18px;
-  padding: 26px 22px 24px;
+  padding: 28px 22px 24px;
+  /* Match the home hero's gradient treatment so the login feels like a
+     pre-home version of the same card. */
+  background:
+    radial-gradient(ellipse at 25% 30%, rgba(77, 159, 255, 0.18), transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(46, 232, 160, 0.12), transparent 55%),
+    linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
   box-shadow:
     0 30px 60px -20px rgba(0, 0, 0, 0.6),
     0 0 0 1px rgba(255, 255, 255, 0.02) inset;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
 }
 
 .login-brand {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  text-align: center;
+  gap: 6px;
 }
 
 .login-brand-mark {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--exp) 0%, var(--inexp) 100%);
-  color: #0c0d10;
-  font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 800;
-  font-size: 18px;
-  letter-spacing: 1px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transform: skewX(-6deg);
+  width: 96px;
+  height: 96px;
+  filter: drop-shadow(0 8px 20px rgba(255, 94, 133, 0.35));
+  margin-bottom: 4px;
 }
-
-.login-brand-text { display: flex; flex-direction: column; gap: 2px; }
 
 .login-brand-title {
   font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 700;
-  font-size: 22px;
-  letter-spacing: 0.5px;
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
   color: var(--text);
   line-height: 1;
 }
 
 .login-brand-tagline {
-  font-size: 12.5px;
-  color: var(--dim);
-  letter-spacing: 0.2px;
-}
-
-.login-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  background: #0f1118;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 4px;
-}
-
-.login-tab {
-  background: transparent;
-  border: none;
-  color: var(--dim);
-  font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 600;
-  font-size: 14px;
-  letter-spacing: 0.5px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--exp);
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  padding: 9px 10px;
-  border-radius: 7px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.login-tab:hover:not(.is-active) { color: var(--text); }
-
-.login-tab.is-active {
-  background: linear-gradient(120deg, #1a2e5c 0%, #1e1040 100%);
-  color: var(--text);
-  box-shadow: 0 0 0 1px var(--exp-border) inset;
 }
 
 .login-form {
@@ -3143,13 +3109,6 @@ html.login-locked body {
 }
 
 .login-field { display: flex; flex-direction: column; gap: 6px; }
-
-/* Hide signup-only fields when the form is in signin mode. The fields stay
-   in the DOM (their `required` attribute is toggled in JS) so browser
-   password managers don't get confused by elements appearing/disappearing. */
-.login-form[data-mode="signin"] .login-field[data-show="signup"] {
-  display: none;
-}
 
 .login-field-label {
   font-size: 11.5px;

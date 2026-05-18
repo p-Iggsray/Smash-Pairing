@@ -2986,65 +2986,19 @@ if ('share' in navigator) {
 // This block is a no-op when SmashSync is disabled (placeholder config) so
 // forks without Supabase keep working exactly as before.
 
-let _loginMode = 'signin';  // 'signin' | 'signup'
-
-function setLoginMode(mode) {
-  _loginMode = mode === 'signup' ? 'signup' : 'signin';
-  const isSignup = _loginMode === 'signup';
-  const form     = document.getElementById('login-form');
-  const tabIn    = document.getElementById('login-tab-signin');
-  const tabUp    = document.getElementById('login-tab-signup');
-  const submit   = document.getElementById('login-submit');
-  const label    = submit && submit.querySelector('.login-submit-label');
-  const username = document.getElementById('login-username');
-  const pw       = document.getElementById('login-password');
-  const pwConf   = document.getElementById('login-password-confirm');
-  const hint     = document.getElementById('login-hint');
-  const err      = document.getElementById('login-error');
-
-  if (form) form.dataset.mode = _loginMode;
-  if (tabIn) {
-    tabIn.classList.toggle('is-active', !isSignup);
-    tabIn.setAttribute('aria-selected', isSignup ? 'false' : 'true');
-  }
-  if (tabUp) {
-    tabUp.classList.toggle('is-active', isSignup);
-    tabUp.setAttribute('aria-selected', isSignup ? 'true' : 'false');
-  }
-  if (label) label.textContent = isSignup ? 'Create Account' : 'Sign In';
-  // Disable hidden fields outright. The browser otherwise still validates
-  // their `pattern` / `minlength` constraints (especially against auto-filled
-  // values) and silently blocks the form submit when they fail - with no
-  // visible tooltip because the field is display:none. Disabled fields are
-  // skipped entirely.
-  if (username) {
-    username.required = isSignup;
-    username.disabled = !isSignup;
-  }
-  if (pwConf) {
-    pwConf.required = isSignup;
-    pwConf.disabled = !isSignup;
-  }
-  if (pw) pw.autocomplete = isSignup ? 'new-password' : 'current-password';
-  if (hint) {
-    hint.textContent = isSignup
-      ? 'Pick a username (2-32 chars: letters, numbers, . _ -). Use a real email so you can reset your password.'
-      : 'Use your email and password. Your login works on any device.';
-  }
-  if (err) err.textContent = '';
-}
+// setLoginMode is preserved as a no-op so any cached HTML still calling it
+// from an old onclick handler won't throw. The login UI is sign-in-only now;
+// signups are disabled at the Supabase project level too.
+function setLoginMode(_mode) {}
 
 function showLoginGate() {
   const gate = document.getElementById('login-gate');
   if (!gate) return;
   gate.hidden = false;
   document.documentElement.classList.add('login-locked');
-  // Focus the first visible field for the current mode: email in signin,
-  // username in signup. Deferred a tick so iOS Safari brings up the keyboard.
-  const first = _loginMode === 'signup'
-    ? document.getElementById('login-username')
-    : document.getElementById('login-email');
-  setTimeout(() => { if (first && !first.value) first.focus(); }, 50);
+  // Focus email after a tick so iOS Safari brings up the keyboard.
+  const email = document.getElementById('login-email');
+  setTimeout(() => { if (email && !email.value) email.focus(); }, 50);
 }
 
 function hideLoginGate() {
@@ -3053,9 +3007,7 @@ function hideLoginGate() {
   gate.hidden = true;
   document.documentElement.classList.remove('login-locked');
   const pw = document.getElementById('login-password');
-  const pwConf = document.getElementById('login-password-confirm');
   if (pw) pw.value = '';
-  if (pwConf) pwConf.value = '';
 }
 
 function friendlyAuthError(err) {
@@ -3082,16 +3034,13 @@ let _loginInFlight = false;
 async function submitLogin(event) {
   if (event) event.preventDefault();
   if (_loginInFlight) return;
-  console.log('[login] submit fired, mode =', _loginMode);
   _loginInFlight = true;
-  const usernameEl = document.getElementById('login-username');
-  const emailEl    = document.getElementById('login-email');
-  const pwEl       = document.getElementById('login-password');
-  const pwConfEl   = document.getElementById('login-password-confirm');
-  const err        = document.getElementById('login-error');
-  const submit     = document.getElementById('login-submit');
+  const emailEl = document.getElementById('login-email');
+  const pwEl    = document.getElementById('login-password');
+  const err     = document.getElementById('login-error');
+  const submit  = document.getElementById('login-submit');
   if (!emailEl || !pwEl || !submit) {
-    console.error('[login] missing form elements', { emailEl, pwEl, submit });
+    _loginInFlight = false;
     return;
   }
 
@@ -3099,34 +3048,10 @@ async function submitLogin(event) {
   const password = pwEl.value;
   if (err) err.textContent = '';
 
-  if (_loginMode === 'signup') {
-    const username = usernameEl ? usernameEl.value.trim() : '';
-    const confirm  = pwConfEl ? pwConfEl.value : '';
-    if (password !== confirm) {
-      if (err) err.textContent = 'Passwords do not match.';
-      pwConfEl && pwConfEl.focus();
-      _loginInFlight = false;
-      return;
-    }
-    submit.disabled = true;
-    submit.classList.add('is-loading');
-    try {
-      await window.SmashSync.signUp(username, email, password);
-      location.reload();
-    } catch (e) {
-      if (err) err.textContent = friendlyAuthError(e);
-      submit.disabled = false;
-      submit.classList.remove('is-loading');
-      _loginInFlight = false;
-    }
-    return;
-  }
-
   submit.disabled = true;
   submit.classList.add('is-loading');
   try {
-    const result = await window.SmashSync.signIn(email, password);
-    console.log('[login] signIn ok ->', result, ' reloading in 500ms');
+    await window.SmashSync.signIn(email, password);
     // Tiny pause so the persisted-session write to localStorage is durable
     // before reload. Without this, some browsers reload before the SDK has
     // flushed and the session is lost.
