@@ -4,3 +4,6 @@
 !.dev.vars.example
 .env*
 !.env.example
+
+# superpowers brainstorming workspace (mockups for design questions)
+.superpowers/

@@ -10,7 +10,7 @@
 // and behaves exactly as it did before Supabase was added.
 
 window.SMASH_PAIRING_SUPABASE = {
-  url: 'https://dnphmjkueburcvhhwokr.supabase.co/rest/v1/',
+  url: 'https://dnphmjkueburcvhhwokr.supabase.co',
   anonKey: 'sb_publishable_nIXMDUH00FZrYjr9T3FXFQ_xK43QDCM',
 
   // Fake-email domain used to convert a username into something Supabase Auth

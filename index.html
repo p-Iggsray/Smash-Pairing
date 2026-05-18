@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0c0d10">
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate">
@@ -18,7 +19,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=4">
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/theme.css?v=37">
-  <link rel="stylesheet" href="assets/styles.css?v=71">
+  <link rel="stylesheet" href="assets/styles.css?v=78">
   <script>
     // Show the splash at most once per browsing session. A service-worker
     // update-then-reload would otherwise replay the splash a second time
@@ -33,6 +34,14 @@
     // the bottom that reads as a "black bar."
     (function () {
       try {
+        // Hero entrance animation gate. Same one-shot-per-session pattern
+        // as the splash below: html.is-first-load lets the CSS entrance
+        // animations fire, and renderHero() clears the class after the
+        // first home render so re-entering home from another screen doesn't
+        // re-trigger it.
+        if (sessionStorage.getItem('tp_hero_animated') !== '1') {
+          document.documentElement.classList.add('is-first-load');
+        }
         if (sessionStorage.getItem('tp_splash_shown') === '1') {
           document.documentElement.classList.add('splash-skip');
         } else {
@@ -122,14 +131,23 @@
               role="tab" aria-selected="false" onclick="setLoginMode('signup')">Create Account</button>
     </div>
 
-    <form class="login-form" id="login-form" onsubmit="submitLogin(event)" autocomplete="on">
-      <label class="login-field">
+    <form class="login-form" id="login-form" data-mode="signin"
+          onsubmit="submitLogin(event)" autocomplete="on" novalidate>
+      <label class="login-field" data-show="signup">
         <span class="login-field-label">Username</span>
         <input type="text" id="login-username" name="username"
                autocomplete="username" autocapitalize="none" autocorrect="off"
-               inputmode="text" maxlength="32" required
+               inputmode="text" maxlength="32"
                pattern="[A-Za-z0-9._-]{2,32}"
-               placeholder="yourname">
+               placeholder="yourname" disabled>
+      </label>
+
+      <label class="login-field">
+        <span class="login-field-label">Email</span>
+        <input type="email" id="login-email" name="email"
+               autocomplete="email" autocapitalize="none" autocorrect="off"
+               inputmode="email" required
+               placeholder="you@example.com">
       </label>
 
       <label class="login-field">
@@ -139,17 +157,23 @@
                placeholder="At least 6 characters">
       </label>
 
+      <label class="login-field" data-show="signup">
+        <span class="login-field-label">Confirm password</span>
+        <input type="password" id="login-password-confirm" name="password-confirm"
+               autocomplete="new-password" minlength="6"
+               placeholder="Type it again" disabled>
+      </label>
+
       <div class="login-error" id="login-error" role="alert" aria-live="polite"></div>
 
-      <button type="submit" class="login-submit" id="login-submit">
+      <button type="submit" class="login-submit" id="login-submit" onclick="submitLogin(event)">
         <span class="login-submit-label">Sign In</span>
         <span class="login-submit-spinner" aria-hidden="true"></span>
       </button>
     </form>
 
-    <p class="login-hint">
-      Username is letters, numbers, dot, underscore, or hyphen (2-32 chars).
-      No email needed - your login works on any device.
+    <p class="login-hint" id="login-hint">
+      Use your email and password. Your login works on any device.
     </p>
   </div>
 </div>
@@ -162,12 +186,86 @@
   </svg>
 </button>
 
-<header>
-  <h1>Smash Pairing</h1>
-  <p>Team assignment</p>
-</header>
 
 <div id="home">
+
+<!-- Home hero: cinematic welcome panel. Only rendered on the home screen.
+     Stats line, headline, and Kirby visibility all controlled by JS. -->
+<section class="home-hero" id="home-hero" aria-label="Welcome">
+  <div class="home-hero-eyebrow" aria-hidden="true">// READY UP</div>
+  <h1 class="home-hero-headline" id="home-hero-headline">Welcome to Smash Pairing</h1>
+  <div class="home-hero-stats" id="home-hero-stats">Add some players to get started</div>
+
+  <!-- Kirby SVG, cloned from the splash with IDs renamed (sp-* -> hero-*) to
+       avoid <defs> collision when both elements exist in the DOM. -->
+  <svg class="home-hero-mascot" viewBox="0 0 1024 1024" aria-hidden="true">
+    <defs>
+      <radialGradient id="hero-kirby" cx="38%" cy="32%" r="72%">
+        <stop offset="0%"   stop-color="#ffe2eb"/>
+        <stop offset="55%"  stop-color="#ff9bb6"/>
+        <stop offset="100%" stop-color="#ff5e85"/>
+      </radialGradient>
+      <linearGradient id="hero-eye" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%"   stop-color="#2a3a78"/>
+        <stop offset="55%"  stop-color="#0a1450"/>
+        <stop offset="100%" stop-color="#020616"/>
+      </linearGradient>
+      <radialGradient id="hero-foot" cx="50%" cy="32%" r="78%">
+        <stop offset="0%"   stop-color="#ff4070"/>
+        <stop offset="100%" stop-color="#a8082a"/>
+      </radialGradient>
+      <radialGradient id="hero-mouth" cx="50%" cy="50%" r="60%">
+        <stop offset="0%"   stop-color="#ff3a72"/>
+        <stop offset="100%" stop-color="#8e0e2c"/>
+      </radialGradient>
+    </defs>
+    <g transform="translate(512 512)">
+      <ellipse cx="-135" cy="252" rx="122" ry="74" fill="url(#hero-foot)" stroke="#1a0a14" stroke-width="14" transform="rotate(-18 -135 252)"/>
+      <ellipse cx="150"  cy="268" rx="132" ry="76" fill="url(#hero-foot)" stroke="#1a0a14" stroke-width="14" transform="rotate(18 150 268)"/>
+      <ellipse cx="-250" cy="60"  rx="72"  ry="94"  fill="url(#hero-kirby)" stroke="#1a0a14" stroke-width="14" transform="rotate(-28 -250 60)"/>
+      <ellipse cx="268"  cy="78"  rx="80"  ry="104" fill="url(#hero-kirby)" stroke="#1a0a14" stroke-width="14" transform="rotate(28 268 78)"/>
+      <circle  cx="0"    cy="0"   r="238"  fill="url(#hero-kirby)" stroke="#1a0a14" stroke-width="16"/>
+      <ellipse cx="-78"  cy="-105" rx="86" ry="56" fill="#fff0f5" opacity="0.45"/>
+      <ellipse cx="-112" cy="58"  rx="40" ry="20" fill="#ff5a87" opacity="0.85"/>
+      <ellipse cx="112"  cy="58"  rx="40" ry="20" fill="#ff5a87" opacity="0.85"/>
+      <ellipse cx="-72"  cy="-28" rx="30" ry="64" fill="url(#hero-eye)" stroke="#1a0a14" stroke-width="6"/>
+      <ellipse cx="-74"  cy="-52" rx="22" ry="32" fill="#5e9aff" opacity="0.55"/>
+      <ellipse cx="-80"  cy="-66" rx="13" ry="23" fill="#ffffff"/>
+      <ellipse cx="-66"  cy="22"  rx="9"  ry="15" fill="#ffffff" opacity="0.75"/>
+      <ellipse cx="72"   cy="-28" rx="30" ry="64" fill="url(#hero-eye)" stroke="#1a0a14" stroke-width="6"/>
+      <ellipse cx="70"   cy="-52" rx="22" ry="32" fill="#5e9aff" opacity="0.55"/>
+      <ellipse cx="64"   cy="-66" rx="13" ry="23" fill="#ffffff"/>
+      <ellipse cx="78"   cy="22"  rx="9"  ry="15" fill="#ffffff" opacity="0.75"/>
+      <ellipse cx="0"    cy="72"  rx="28" ry="20" fill="url(#hero-mouth)" stroke="#1a0a14" stroke-width="8"/>
+      <ellipse cx="0"    cy="79"  rx="15" ry="7"  fill="#ff85a8"/>
+    </g>
+  </svg>
+</section>
+
+<!-- Two-button navigation hub: instant access to Profiles and Schedule
+     without opening the hamburger. -->
+<nav class="home-hub" aria-label="Quick navigation">
+  <button class="home-hub-btn" type="button" onclick="openProfilesScreen()" aria-label="Open profiles">
+    <span class="home-hub-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>
+      </svg>
+    </span>
+    <span class="home-hub-label">Profiles</span>
+  </button>
+  <button class="home-hub-btn is-green" type="button" onclick="openScheduleScreen()" aria-label="Open scheduling">
+    <span class="home-hub-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="5" width="18" height="16" rx="2"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+        <line x1="8" y1="3" x2="8" y2="7"/>
+        <line x1="16" y1="3" x2="16" y2="7"/>
+      </svg>
+    </span>
+    <span class="home-hub-label">Schedule</span>
+  </button>
+</nav>
 
 <div class="home-actions">
   <button class="btn-presets" onclick="openPresets()">
@@ -808,8 +906,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="assets/supabase-config.js?v=1"></script>
-<script src="assets/supabase-client.js?v=1"></script>
-<script src="assets/app.js?v=65"></script>
+<script src="assets/supabase-client.js?v=3"></script>
+<script src="assets/app.js?v=74"></script>
 
 </body>
 </html>

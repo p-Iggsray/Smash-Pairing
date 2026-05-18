@@ -67,26 +67,33 @@
   const authListeners = new Set();
   const pushTimers = new Map();       // key -> timeout id
 
-  function usernameToEmail(username) {
-    const u = String(username || '').trim().toLowerCase();
+  function normalizeUsername(username) {
+    const u = String(username || '').trim();
     if (!u) throw new Error('Username required');
-    if (!/^[a-z0-9._-]{2,32}$/.test(u)) {
+    if (!/^[A-Za-z0-9._-]{2,32}$/.test(u)) {
       throw new Error('Username must be 2-32 chars: letters, numbers, . _ -');
     }
-    return `${u}@${cfg.emailDomain || 'smashpairing.local'}`;
+    return u;
   }
 
-  function emailToUsername(email) {
-    if (!email) return null;
-    const at = email.indexOf('@');
-    return at > 0 ? email.slice(0, at) : email;
+  function normalizeEmail(email) {
+    const e = String(email || '').trim().toLowerCase();
+    if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+      throw new Error('Enter a valid email address');
+    }
+    return e;
   }
 
   function userFromSession(session) {
     if (!session || !session.user) return null;
+    const meta = session.user.user_metadata || {};
     return {
       id: session.user.id,
-      username: emailToUsername(session.user.email),
+      email: session.user.email || null,
+      // Fall back to the email's local-part if metadata is missing (covers
+      // any account that pre-dates the username field).
+      username: meta.username
+        || (session.user.email ? session.user.email.split('@')[0] : null),
     };
   }
 
@@ -238,25 +245,33 @@
     return localChanged;
   }
 
-  async function signUp(username, password) {
-    const email = usernameToEmail(username);
-    const { data, error } = await client.auth.signUp({ email, password });
+  async function signUp(username, email, password) {
+    const u = normalizeUsername(username);
+    const e = normalizeEmail(email);
+    const { data, error } = await client.auth.signUp({
+      email: e,
+      password,
+      options: { data: { username: u } },
+    });
     if (error) throw error;
     if (!data.session) {
-      // Email confirmation is enabled in the Supabase project. Tell the user
-      // to disable it under Authentication -> Providers -> Email -> "Confirm
-      // email" since they signed up with a fake email address.
-      throw new Error('Account created but session missing. Disable "Confirm email" in Supabase Auth settings.');
+      // Email confirmation is enabled in the Supabase project. With a real
+      // email this is fine - the user gets a confirmation link - but the app
+      // won't have a session until they click it. Surface that clearly.
+      throw new Error('Check your email to confirm the account, then sign in.');
     }
     currentUser = userFromSession(data.session);
     notifyAuth();
     return { user: currentUser };
   }
 
-  async function signIn(username, password) {
-    const email = usernameToEmail(username);
-    const { data, error } = await client.auth.signInWithPassword({ email, password });
+  async function signIn(email, password) {
+    const e = normalizeEmail(email);
+    console.log('[auth] signIn ->', e);
+    const { data, error } = await client.auth.signInWithPassword({ email: e, password });
+    console.log('[auth] signIn response', { hasSession: !!(data && data.session), error });
     if (error) throw error;
+    if (!data.session) throw new Error('Sign-in returned no session');
     currentUser = userFromSession(data.session);
     notifyAuth();
     return { user: currentUser };
@@ -283,8 +298,9 @@
   // getCurrentUser() at startup.
   const ready = client.auth.getSession().then(({ data }) => {
     currentUser = userFromSession(data.session);
+    console.log('[auth] boot session', currentUser);
     notifyAuth();
-  }).catch(() => {});
+  }).catch((e) => { console.error('[auth] boot session error', e); });
 
   // Refresh-token rotations and external sign-outs (e.g. token expired in
   // another tab) flow through here so authListeners stay accurate.

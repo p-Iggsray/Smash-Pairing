@@ -1192,7 +1192,7 @@ body:has(#menu-modal.open) #menu-btn line:nth-child(3) {
 }
 body[data-screen="profiles"] #profiles { transform: translateX(0); }
 body[data-screen="profiles"] header,
-body[data-screen="profiles"] #menu-btn { display: none; }
+body[data-screen="profiles"] #menu-btn { display: none !important; }
 
 /* Hide the + button when the form sub-view is open. Two-attribute trigger
    so we don't have to rely on sibling selectors that depend on DOM order. */
@@ -3021,6 +3021,10 @@ html.splash-skip #splash { display: none; }
 /* Full-viewport overlay above everything except the splash. When visible the
    underlying app must not be focusable; login-gate.is-active toggles that on
    <html> so the rest of the page becomes inert. */
+/* The [hidden] override is mandatory: without it our `display: flex` below
+   beats the browser default `[hidden] { display: none }` and the gate is
+   permanently visible even after login. */
+.login-gate[hidden] { display: none !important; }
 .login-gate {
   position: fixed;
   inset: 0;
@@ -3140,6 +3144,13 @@ html.login-locked body {
 
 .login-field { display: flex; flex-direction: column; gap: 6px; }
 
+/* Hide signup-only fields when the form is in signin mode. The fields stay
+   in the DOM (their `required` attribute is toggled in JS) so browser
+   password managers don't get confused by elements appearing/disappearing. */
+.login-form[data-mode="signin"] .login-field[data-show="signup"] {
+  display: none;
+}
+
 .login-field-label {
   font-size: 11.5px;
   font-weight: 600;
@@ -3231,4 +3242,232 @@ html.login-locked body {
   color: var(--dim);
   line-height: 1.5;
   text-align: center;
+}
+
+/* ============================================================
+   Home hero + hub
+   Renders only on the home screen. Hides on profiles/schedule
+   (via body[data-screen]) and on the results view (via #home
+   being display:none when state.hasPaired).
+   ============================================================ */
+
+.home-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px 22px 20px;
+  min-height: 170px;
+  margin: 0 auto 14px;
+  max-width: 640px;
+  background:
+    radial-gradient(ellipse at 25% 30%, rgba(77, 159, 255, 0.28), transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(46, 232, 160, 0.18), transparent 55%),
+    linear-gradient(180deg, #13151c 0%, #0c0d10 100%);
+}
+
+.home-hero-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--exp);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+.home-hero-headline {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 800;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--text);
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  max-width: 65%;
+  position: relative;
+  z-index: 2;
+}
+
+.home-hero-stats {
+  font-size: 12px;
+  color: #7a8090;
+  letter-spacing: 0.3px;
+  position: relative;
+  z-index: 2;
+  max-width: 65%;
+}
+
+.home-hero-stats strong {
+  color: var(--inexp);
+  font-weight: 600;
+}
+
+.home-hero-mascot {
+  position: absolute;
+  right: -8px;
+  bottom: -10px;
+  width: 130px;
+  height: 130px;
+  z-index: 1;
+  filter: drop-shadow(0 6px 20px rgba(255, 94, 133, 0.3));
+  pointer-events: none;
+}
+
+/* Hub button strip ----------------------------------------- */
+
+.home-hub {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 auto 16px;
+  max-width: 640px;
+}
+
+.home-hub-btn {
+  background: #13151c;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  cursor: pointer;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  transition:
+    transform 0.2s cubic-bezier(.34, 1.56, .64, 1),
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.home-hub-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  border-color: var(--exp);
+  box-shadow: 0 8px 20px -8px rgba(77, 159, 255, 0.5);
+}
+
+.home-hub-btn.is-green:hover {
+  border-color: var(--inexp);
+  box-shadow: 0 8px 20px -8px rgba(46, 232, 160, 0.5);
+}
+
+.home-hub-btn:active {
+  transform: translateY(0) scale(0.98);
+  transition-duration: 120ms;
+}
+
+.home-hub-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--exp-grad);
+  border: 1px solid var(--exp-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--exp);
+  flex-shrink: 0;
+}
+
+.home-hub-btn.is-green .home-hub-icon {
+  background: var(--inexp-grad);
+  border-color: var(--inexp-border);
+  color: var(--inexp);
+}
+
+.home-hub-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   Home hero + hub: animations
+   Entrance plays only when the .is-first-load class is on
+   <html> (set by the JS first-load gate). Ambient animations
+   (glow pulse, Kirby bob) always run while the home is visible.
+   ============================================================ */
+
+@keyframes home-hero-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes home-hero-glow {
+  0%, 100% { box-shadow: inset 0 0 0 0 rgba(77, 159, 255, 0); }
+  50%      { box-shadow: inset 0 0 40px 0 rgba(77, 159, 255, 0.08); }
+}
+
+@keyframes home-hero-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50%      { transform: translateY(-6px) rotate(2deg); }
+}
+
+/* Ambient: always on while home is visible. */
+.home-hero {
+  animation: home-hero-glow 6s ease-in-out infinite;
+}
+
+.home-hero-mascot {
+  animation: home-hero-bob 4s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+/* Entrance: only when html.is-first-load is set. The JS removes
+   that class after the first home render so re-entry from
+   Profiles/Schedule doesn't re-animate. */
+html.is-first-load .home-hero-eyebrow,
+html.is-first-load .home-hero-headline,
+html.is-first-load .home-hero-stats,
+html.is-first-load .home-hero-mascot,
+html.is-first-load .home-hub-btn {
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(.34, 1.56, .64, 1);
+  animation-duration: 450ms;
+  animation-name: home-hero-enter;
+}
+
+html.is-first-load .home-hero-eyebrow  { animation-delay: 50ms;  }
+html.is-first-load .home-hero-headline { animation-delay: 150ms; }
+html.is-first-load .home-hero-stats    { animation-delay: 250ms; }
+
+/* Mascot: entrance, then ambient bob starts AFTER entrance completes
+   (450ms duration + 350ms delay = 800ms, bob starts at 900ms). */
+html.is-first-load .home-hero-mascot {
+  animation:
+    home-hero-enter 450ms 350ms cubic-bezier(.34, 1.56, .64, 1) both,
+    home-hero-bob 4s 900ms ease-in-out infinite;
+}
+
+html.is-first-load .home-hub-btn:nth-child(1) { animation-delay: 400ms; }
+html.is-first-load .home-hub-btn:nth-child(2) { animation-delay: 500ms; }
+
+/* Reduced motion: strip everything. Hover keeps its color/border/
+   shadow change but loses the spring. */
+@media (prefers-reduced-motion: reduce) {
+  .home-hero,
+  .home-hero-mascot,
+  html.is-first-load .home-hero-eyebrow,
+  html.is-first-load .home-hero-headline,
+  html.is-first-load .home-hero-stats,
+  html.is-first-load .home-hero-mascot,
+  html.is-first-load .home-hub-btn {
+    animation: none !important;
+  }
+  .home-hub-btn {
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .home-hub-btn:hover {
+    transform: none;
+  }
+  .home-hub-btn:active {
+    transform: none;
+  }
 }

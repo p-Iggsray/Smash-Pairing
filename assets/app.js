@@ -564,6 +564,60 @@ function resetTeams() {
 
 // ---- render ----
 
+// Pluralize a count for the stats line. Returns "1 player" / "5 players".
+function _heroPlural(n, singular) {
+  return `${n} ${singular}${n === 1 ? '' : 's'}`;
+}
+
+// Updates the hero panel's headline + stats line. Idempotent and cheap;
+// safe to call on every render(). The hero is hidden by CSS when
+// the home screen isn't visible (#home is display:none), so we don't
+// need to gate this call by currentScreen.
+function renderHero() {
+  const headline = document.getElementById('home-hero-headline');
+  const stats    = document.getElementById('home-hero-stats');
+  if (!headline || !stats) return;
+
+  // Headline: greet the logged-in user when sync is enabled and we know
+  // them, otherwise a generic welcome. Falls back through username ->
+  // email local-part -> 'Smash Pairing'.
+  const user = (window.SmashSync && window.SmashSync.getCurrentUser)
+    ? window.SmashSync.getCurrentUser()
+    : null;
+  const name = user && (user.username || (user.email ? user.email.split('@')[0] : null));
+  headline.textContent = name
+    ? `Welcome back, @${name}`
+    : 'Welcome to Smash Pairing';
+
+  // Stats: live counts from in-memory state. Fresh-account empty case
+  // gets an onboarding nudge instead of "0 players · 0 presets · 0 profiles".
+  const playerCount  = state.exp.length + state.inexp.length;
+  const presetCount  = Array.isArray(presets)  ? presets.length  : 0;
+  const profileCount = Array.isArray(profiles) ? profiles.length : 0;
+
+  if (playerCount === 0 && presetCount === 0 && profileCount === 0) {
+    stats.textContent = 'Add some players to get started';
+  } else {
+    stats.innerHTML =
+      `<strong>${playerCount}</strong> ${playerCount === 1 ? 'player' : 'players'} ` +
+      `&middot; <strong>${presetCount}</strong> ${presetCount === 1 ? 'preset' : 'presets'} ` +
+      `&middot; <strong>${profileCount}</strong> ${profileCount === 1 ? 'profile' : 'profiles'}`;
+  }
+
+  // First-load entrance plays once per page session. Clear the marker as
+  // soon as the hero has been rendered, then drop the class one frame
+  // later so the animation has the full opportunity to register. This
+  // prevents replays when the user returns to home from Profiles/Schedule.
+  if (document.documentElement.classList.contains('is-first-load')
+      && sessionStorage.getItem('tp_hero_animated') !== '1') {
+    sessionStorage.setItem('tp_hero_animated', '1');
+    // Defer class removal so the CSS has caught the animation start.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      document.documentElement.classList.remove('is-first-load');
+    }));
+  }
+}
+
 function render() {
   document.getElementById('home').style.display     = state.hasPaired ? 'none' : 'block';
   document.getElementById('menu-btn').style.display = state.hasPaired ? 'none' : 'flex';
@@ -571,6 +625,7 @@ function render() {
     currentScreen === 'profiles' ? 'profiles' :
     currentScreen === 'schedule' ? 'schedule' :
     (state.hasPaired ? 'results' : 'home');
+  renderHero();
   renderMenu();
   renderPanel('exp');
   renderPanel('inexp');
@@ -2935,22 +2990,47 @@ let _loginMode = 'signin';  // 'signin' | 'signup'
 
 function setLoginMode(mode) {
   _loginMode = mode === 'signup' ? 'signup' : 'signin';
-  const tabIn  = document.getElementById('login-tab-signin');
-  const tabUp  = document.getElementById('login-tab-signup');
-  const submit = document.getElementById('login-submit');
-  const label  = submit && submit.querySelector('.login-submit-label');
-  const pw     = document.getElementById('login-password');
-  const err    = document.getElementById('login-error');
+  const isSignup = _loginMode === 'signup';
+  const form     = document.getElementById('login-form');
+  const tabIn    = document.getElementById('login-tab-signin');
+  const tabUp    = document.getElementById('login-tab-signup');
+  const submit   = document.getElementById('login-submit');
+  const label    = submit && submit.querySelector('.login-submit-label');
+  const username = document.getElementById('login-username');
+  const pw       = document.getElementById('login-password');
+  const pwConf   = document.getElementById('login-password-confirm');
+  const hint     = document.getElementById('login-hint');
+  const err      = document.getElementById('login-error');
+
+  if (form) form.dataset.mode = _loginMode;
   if (tabIn) {
-    tabIn.classList.toggle('is-active', _loginMode === 'signin');
-    tabIn.setAttribute('aria-selected', _loginMode === 'signin' ? 'true' : 'false');
+    tabIn.classList.toggle('is-active', !isSignup);
+    tabIn.setAttribute('aria-selected', isSignup ? 'false' : 'true');
   }
   if (tabUp) {
-    tabUp.classList.toggle('is-active', _loginMode === 'signup');
-    tabUp.setAttribute('aria-selected', _loginMode === 'signup' ? 'true' : 'false');
+    tabUp.classList.toggle('is-active', isSignup);
+    tabUp.setAttribute('aria-selected', isSignup ? 'true' : 'false');
   }
-  if (label) label.textContent = _loginMode === 'signup' ? 'Create Account' : 'Sign In';
-  if (pw) pw.autocomplete = _loginMode === 'signup' ? 'new-password' : 'current-password';
+  if (label) label.textContent = isSignup ? 'Create Account' : 'Sign In';
+  // Disable hidden fields outright. The browser otherwise still validates
+  // their `pattern` / `minlength` constraints (especially against auto-filled
+  // values) and silently blocks the form submit when they fail - with no
+  // visible tooltip because the field is display:none. Disabled fields are
+  // skipped entirely.
+  if (username) {
+    username.required = isSignup;
+    username.disabled = !isSignup;
+  }
+  if (pwConf) {
+    pwConf.required = isSignup;
+    pwConf.disabled = !isSignup;
+  }
+  if (pw) pw.autocomplete = isSignup ? 'new-password' : 'current-password';
+  if (hint) {
+    hint.textContent = isSignup
+      ? 'Pick a username (2-32 chars: letters, numbers, . _ -). Use a real email so you can reset your password.'
+      : 'Use your email and password. Your login works on any device.';
+  }
   if (err) err.textContent = '';
 }
 
@@ -2959,10 +3039,12 @@ function showLoginGate() {
   if (!gate) return;
   gate.hidden = false;
   document.documentElement.classList.add('login-locked');
-  const u = document.getElementById('login-username');
-  // Defer focus until the splash has yielded, otherwise iOS Safari sometimes
-  // refuses to bring up the keyboard.
-  setTimeout(() => { if (u && !u.value) u.focus(); }, 50);
+  // Focus the first visible field for the current mode: email in signin,
+  // username in signup. Deferred a tick so iOS Safari brings up the keyboard.
+  const first = _loginMode === 'signup'
+    ? document.getElementById('login-username')
+    : document.getElementById('login-email');
+  setTimeout(() => { if (first && !first.value) first.focus(); }, 50);
 }
 
 function hideLoginGate() {
@@ -2971,48 +3053,91 @@ function hideLoginGate() {
   gate.hidden = true;
   document.documentElement.classList.remove('login-locked');
   const pw = document.getElementById('login-password');
+  const pwConf = document.getElementById('login-password-confirm');
   if (pw) pw.value = '';
+  if (pwConf) pwConf.value = '';
 }
 
 function friendlyAuthError(err) {
   const msg = (err && err.message) || String(err || '');
-  if (/invalid login credentials/i.test(msg)) return 'Wrong username or password.';
-  if (/user already registered/i.test(msg)) return 'That username is already taken.';
+  // Log the raw error so devtools shows the original message even after we
+  // map it to something friendlier in the UI.
+  try { console.error('[auth]', err); } catch (_) {}
+  if (/email not confirmed/i.test(msg)) return 'Confirm your email first, then sign in. Check your inbox (and spam) for the verification link.';
+  if (/invalid login credentials/i.test(msg)) return 'Wrong email or password.';
+  if (/user already registered/i.test(msg)) return 'An account already exists for that email. Use Sign In instead.';
   if (/email rate limit/i.test(msg)) return 'Too many attempts. Wait a minute and try again.';
   if (/password should be at least/i.test(msg)) return 'Password must be at least 6 characters.';
   if (/signups not allowed/i.test(msg)) return 'New sign-ups are disabled on this server.';
+  if (/email address.*invalid/i.test(msg)) return 'Enter a valid email address.';
+  if (/network|failed to fetch/i.test(msg)) return 'Network error. Check your connection and try again.';
   return msg || 'Something went wrong. Try again.';
 }
 
-async function submitLogin(event) {
-  event.preventDefault();
-  const u = document.getElementById('login-username');
-  const p = document.getElementById('login-password');
-  const err = document.getElementById('login-error');
-  const submit = document.getElementById('login-submit');
-  if (!u || !p || !submit) return;
+// Guards against the button onclick + form onsubmit both firing in browsers
+// that bubble click -> submit in the same task. Without this, signIn would
+// run twice and the second call would race the location.reload from the first.
+let _loginInFlight = false;
 
-  const username = u.value.trim();
-  const password = p.value;
+async function submitLogin(event) {
+  if (event) event.preventDefault();
+  if (_loginInFlight) return;
+  console.log('[login] submit fired, mode =', _loginMode);
+  _loginInFlight = true;
+  const usernameEl = document.getElementById('login-username');
+  const emailEl    = document.getElementById('login-email');
+  const pwEl       = document.getElementById('login-password');
+  const pwConfEl   = document.getElementById('login-password-confirm');
+  const err        = document.getElementById('login-error');
+  const submit     = document.getElementById('login-submit');
+  if (!emailEl || !pwEl || !submit) {
+    console.error('[login] missing form elements', { emailEl, pwEl, submit });
+    return;
+  }
+
+  const email    = emailEl.value.trim();
+  const password = pwEl.value;
   if (err) err.textContent = '';
+
+  if (_loginMode === 'signup') {
+    const username = usernameEl ? usernameEl.value.trim() : '';
+    const confirm  = pwConfEl ? pwConfEl.value : '';
+    if (password !== confirm) {
+      if (err) err.textContent = 'Passwords do not match.';
+      pwConfEl && pwConfEl.focus();
+      _loginInFlight = false;
+      return;
+    }
+    submit.disabled = true;
+    submit.classList.add('is-loading');
+    try {
+      await window.SmashSync.signUp(username, email, password);
+      location.reload();
+    } catch (e) {
+      if (err) err.textContent = friendlyAuthError(e);
+      submit.disabled = false;
+      submit.classList.remove('is-loading');
+      _loginInFlight = false;
+    }
+    return;
+  }
+
   submit.disabled = true;
   submit.classList.add('is-loading');
-
   try {
-    if (_loginMode === 'signup') {
-      await window.SmashSync.signUp(username, password);
-    } else {
-      await window.SmashSync.signIn(username, password);
-    }
-    // Full reload so the boot path's syncOnLoad runs against a fresh in-
-    // memory state and we render once with the synced data.
-    location.reload();
+    const result = await window.SmashSync.signIn(email, password);
+    console.log('[login] signIn ok ->', result, ' reloading in 500ms');
+    // Tiny pause so the persisted-session write to localStorage is durable
+    // before reload. Without this, some browsers reload before the SDK has
+    // flushed and the session is lost.
+    setTimeout(() => location.reload(), 500);
   } catch (e) {
     if (err) err.textContent = friendlyAuthError(e);
     submit.disabled = false;
     submit.classList.remove('is-loading');
-    p.focus();
-    p.select && p.select();
+    _loginInFlight = false;
+    pwEl.focus();
+    pwEl.select && pwEl.select();
   }
 }
 
@@ -3037,6 +3162,8 @@ function refreshAuthUi(user) {
   if (signOutDesc && user && user.username) {
     signOutDesc.textContent = `Signed in as @${user.username}`;
   }
+  // Keep the hero greeting in sync with login state.
+  if (typeof renderHero === 'function') renderHero();
 }
 
 (async () => {
@@ -3051,6 +3178,22 @@ function refreshAuthUi(user) {
     // or the user is logged out, this resolves instantly with false.
     if (window.SmashSync && window.SmashSync.isEnabled()) {
       try {
+        // Belt-and-suspenders: bind the form submit + button click in JS so
+        // we don't depend on the cached HTML having the inline handlers.
+        // Both are idempotent if the handlers are already there.
+        const _form = document.getElementById('login-form');
+        const _btn  = document.getElementById('login-submit');
+        if (_form && !_form.dataset.bound) {
+          _form.addEventListener('submit', submitLogin);
+          _form.dataset.bound = '1';
+          console.log('[login] form submit handler bound');
+        }
+        if (_btn && !_btn.dataset.bound) {
+          _btn.addEventListener('click', submitLogin);
+          _btn.dataset.bound = '1';
+          console.log('[login] button click handler bound');
+        }
+
         await window.SmashSync.ready;
         const user = window.SmashSync.getCurrentUser();
         if (!user) {
