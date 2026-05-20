@@ -1371,9 +1371,7 @@ function renderBestSlots() {
     const d = parseIsoToDate(s.date);
     const dow = d.toLocaleDateString(undefined, { weekday: 'short' });
     const md  = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    // formatHour12 maps 24 -> "12 PM" (wrong - hour 24 is midnight). Match
-    // the same end-hour special-case used elsewhere in this file.
-    const endLabel = s.endHour === 24 ? '12 AM' : formatHour12(s.endHour);
+    const endLabel = formatHour12(s.endHour);
     const range = `${formatHour12(s.startHour)} – ${endLabel}`;
     return `
       <button type="button" class="schedule-best-slot-card" onclick="scrollToCell('${s.date}', ${s.startHour})">
@@ -1428,7 +1426,7 @@ function buildShareSlotsText(slots) {
     const d = parseIsoToDate(s.date);
     const dow = d.toLocaleDateString(undefined, { weekday: 'short' });
     const md  = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const endLabel = s.endHour === 24 ? '12 AM' : formatHour12(s.endHour);
+    const endLabel = formatHour12(s.endHour);
     lines.push(`#${i + 1} ${dow} ${md} · ${formatHour12(s.startHour)} – ${endLabel} (${s.count}/${total} can stay)`);
   });
   return lines.join('\n');
@@ -1551,7 +1549,7 @@ async function exportScheduleAsImage() {
     const d = parseIsoToDate(s.date);
     const dow = d.toLocaleDateString(undefined, { weekday: 'short' });
     const md  = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const endLabel = s.endHour === 24 ? '12 AM' : formatHour12(s.endHour);
+    const endLabel = formatHour12(s.endHour);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 28px "Barlow Condensed", system-ui, sans-serif';
@@ -1778,9 +1776,10 @@ function renderHeatmapGrid() {
 }
 
 function formatHour12(h) {
-  // 0 -> "12 AM", 13 -> "1 PM", etc. Compact: no leading zero, no minutes.
+  // 0/24 -> "12 AM", 13 -> "1 PM", etc. Compact: no leading zero, no minutes.
+  if (h === 0 || h === 24) return '12 AM';
   const period = h < 12 ? 'AM' : 'PM';
-  const h12 = h === 0 ? 12 : (h > 12 ? h - 12 : h);
+  const h12 = h > 12 ? h - 12 : h;
   return `${h12} ${period}`;
 }
 
@@ -2062,8 +2061,7 @@ function applyRecentChip(startHour, endHour) {
 // is clearer than "h - 24:00".
 function formatShiftRange(startHour, endHour) {
   if (startHour === 0 && endHour === 24) return 'All day';
-  const endLabel = endHour === 24 ? '12 AM' : formatHour12(endHour);
-  return `${formatHour12(startHour)} – ${endLabel}`;
+  return `${formatHour12(startHour)} – ${formatHour12(endHour)}`;
 }
 
 function renderShiftDatePills() {
