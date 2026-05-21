@@ -1435,6 +1435,11 @@ function buildShareSlotsText(slots) {
 function buildShareFullText() {
   const dates = datesInRange();
   const slots = topBestSlots(5);
+  // Guards live state because exportScheduleAsImage calls this from a
+  // toBlob() callback that runs after an async hop — profiles or the
+  // date range can be cleared between the export starting and the
+  // callback firing. Returning null lets callers toast + bail.
+  if (!dates.length || !slots.length || !profiles.length) return null;
   const startD = parseIsoToDate(dates[0]);
   const endD   = parseIsoToDate(dates[dates.length - 1]);
   const startStr = startD.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -1451,6 +1456,7 @@ async function copyScheduleAsText() {
   if (!profiles.length)        { showToast('Add profiles first');  return; }
   if (!datesInRange().length)  { showToast('Pick a date range');   return; }
   const text = buildShareFullText();
+  if (!text) { showToast('Nothing to share yet', { variant: 'error' }); return; }
   try {
     await navigator.clipboard.writeText(text);
     showToast('Copied to clipboard');
@@ -1706,6 +1712,7 @@ async function exportScheduleAsImage() {
     if (!blob) { showToast('Image generation failed', { variant: 'error' }); return; }
     const file = new File([blob], 'smash-pairing.png', { type: 'image/png' });
     const shareText = buildShareFullText();
+    if (!shareText) { showToast('Schedule changed during export — try again', { variant: 'error' }); return; }
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: 'Tournament availability', text: shareText });
